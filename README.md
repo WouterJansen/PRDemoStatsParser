@@ -1,2 +1,2 @@
 # PRStats
-WIP webservice for map statistics 
+Webservice for map statistics of Project Reality: Battlefield 2. 
