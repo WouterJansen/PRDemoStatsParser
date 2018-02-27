@@ -3,8 +3,27 @@ import struct
 import zlib
 import cStringIO
 import json
-import os
+import os,os.path
 import time
+import errno
+from collections import namedtuple
+from fnmatch import fnmatch
+
+# Helper functions to turn json files into namedtuple
+def _json_object_hook(d): return namedtuple('X', d.keys())(*d.values())
+def json2obj(data): return json.loads(data, object_hook=_json_object_hook)
+
+# Helper functions to safely create new folders if it doesn't exist already
+def mkdir_p(path):
+    try:
+        os.makedirs(path)
+    except OSError as exc: # Python >2.5
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else: raise
+def safe_open_w(path):
+    mkdir_p(os.path.dirname(path))
+    return open(path, 'w')
 
 
 # Helper function to return a null terminated string from pos in buffer
@@ -44,6 +63,7 @@ def unpack(stream, fmt):
         return values[0]
     return values
 
+###############################
 
 class Flag(object):
 
@@ -53,10 +73,6 @@ class Flag(object):
         self.y = y
         self.z = z
         self.radius = radius
-
-    def printFlag(self):
-        print "Flag CPID:" + str(self.cpid) + ", at: " + str(self.x) + "," + str(self.y) + "," + str(self.z) + " with radius " + str(self.radius)
-
 
 class ParsedDemo(object):
 
@@ -82,22 +98,16 @@ class ParsedDemo(object):
         self.ticketsTeam2 = ticketsTeam2
         self.flags = flags
 
-    def printData(self):
-        print "Map: " + self.map + " " + self.gameMode + " " + str(
-            self.layer) + " played on " + time.strftime('%Y-%m-%d %H:%M:%S',
-                                                           time.localtime(self.date))
-        print "Duration:" + str(self.duration) + ", PlayerCount:" + str(self.playerCount) + ", Tickets: " + str(self.ticketsTeam1) + "," + str(self.ticketsTeam2)
-        for flag in self.flags:
-            flag.printFlag()
-
+    #TODO Implement SGID method
+    #Create ID of flag route based on CPID list (placeholder until SGID is available to calculate route ID)
     def getFlagId(self):
         flagCPIDs = []
         for flag in self.flags:
             flagCPIDs.append(flag.cpid)
-        return " ".join(str(x) for x in flagCPIDs)
+        return "route_" + "_".join(str(x) for x in flagCPIDs)
+
 
 class Map(object):
-
 
     def __init__(self):
         self.gameModes = {}
@@ -109,8 +119,12 @@ class Map(object):
         self.winsTeam2 = 0
         self.draws = 0
 
-class GameMode(object):
+    #Write object to JSON string
+    def toJSON(self):
+        return json.dumps(self, default=lambda o: o.__dict__,
+                          sort_keys=True, indent=4)
 
+class GameMode(object):
 
     def __init__(self):
         self.layers = {}
@@ -124,7 +138,6 @@ class GameMode(object):
 
 class Layer(object):
 
-
     def __init__(self):
         self.routes = []
         self.timesPlayed = 0
@@ -137,7 +150,6 @@ class Layer(object):
 
 class Route(object):
 
-
     def __init__(self, id):
         self.id = id
         self.roundsPlayed = []
@@ -149,6 +161,7 @@ class Route(object):
         self.winsTeam2 = 0
         self.draws = 0
 
+#Parse .PRdemo file
 class demoParser:
     def __init__(self, filename):
         compressedFile = open("./demos/" + filename, 'rb')
@@ -178,6 +191,7 @@ class demoParser:
 
         self.runToEnd()
 
+        #create ParsedDemo object and set it to complete if it was able to get alld data
         try:
             self.parsedDemo.setData(self.date, self.mapName, self.mapGamemode, self.mapLayer, self.timePlayed, self.players,
                                       self.ticket1, self.ticket2, self.flags)
@@ -205,7 +219,7 @@ class demoParser:
             values = unpack(self.stream, "IfssBHHssBssIHH")
             self.mapName = values[7]
             self.mapGamemode = values[8]
-            self.mapLayer = values[9]
+            self.mapLayer = "layer_" + str(values[9])
             self.date = values[12]
 
         elif messageType == 0x52:  # tickets team 1
@@ -225,12 +239,12 @@ class demoParser:
                 values = unpack(self.stream, "B")
                 self.timePlayed = self.timePlayed + values * 0.04
 
-        elif messageType == 0x11:  # add player (ID, name, hash, IP)
+        elif messageType == 0x11:  # add player
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "Bsss")
                 self.players = self.players + 1
 
-        elif messageType == 0x12:  # remove player (ID)
+        elif messageType == 0x12:  # remove player
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "B")
                 self.players = self.players - 1
@@ -239,7 +253,6 @@ class demoParser:
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "HBHHHH")
                 self.flags.append(Flag(values[0], values[2], values[3], values[4], values[5]))
-
 
         else:
             self.stream.read(messageLength - 1)
@@ -265,26 +278,14 @@ class StatsParser:
     maps = {}
 
     def __init__(self):
-        print "Parsing PRDemos..."
+        self.importStats()
         self.dataAggragation()
-        sys.stdout.flush()
-        sys.stdout.write("\rParsing PRDemos complete.")
-        print "\nCalculating Statistics..."
         self.statsCalc()
-        print "Statistics Calculated."
-        # for filename in os.listdir("./mapdata/"):
-        #     if filename.endswith(".json"):
-        #         os.remove("./mapdata/" + filename)
+        self.exportStats()
 
-        #mapList = []
-        # for filename in os.listdir("./mapdata/"):
-        #     mapList.append(os.path.splitext(filename)[0])
-        #     continue
-        # if not os.path.isfile("./mapdata/maplist.json"):
-        #     with open("./mapdata/maplist.json", 'w') as outfile:
-        #         json.dump(mapList, outfile)
-
+    #Calculate statistics such as times played and average tickets based on data
     def statsCalc(self):
+        print "Calculating Statistics..."
         for mapname,map in self.maps.iteritems():
             mapTotalTickets1 = 0
             mapTotalTickets2 = 0
@@ -351,50 +352,95 @@ class StatsParser:
             self.maps[mapname].averageTicketsTeam1 = mapTotalTickets1 / self.maps[mapname].timesPlayed
             self.maps[mapname].averageTicketsTeam2 = mapTotalTickets2 / self.maps[mapname].timesPlayed
             self.maps[mapname].averageDuration = mapTotalDuration / self.maps[mapname].timesPlayed
-    def dataAggragation(self):
-        for filename in os.listdir("./demos/"):
-            if filename.endswith(".PRdemo"):
-                parsedDemo = demoParser(filename).getParsedDemo()
-                if parsedDemo.map != 0 and parsedDemo.playerCount > 80:
-                    if parsedDemo.map in self.maps:
-                        if parsedDemo.gameMode in self.maps[parsedDemo.map].gameModes:
-                            if parsedDemo.layer in self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers:
-                                found = False
-                                for index, route in enumerate(
-                                        self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
-                                            parsedDemo.layer].routes, start=0):
-                                    if route.id == parsedDemo.getFlagId():
-                                        self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
-                                            parsedDemo.layer].routes[index].roundsPlayed.append(parsedDemo)
-                                        found = True
-                                if found == False:
-                                    self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
-                                        parsedDemo.layer].routes.append(Route(parsedDemo.getFlagId()))
-                                    self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
-                                        parsedDemo.layer].routes[-1].roundsPlayed.append(parsedDemo)
-                            else:
-                                self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
-                                    parsedDemo.layer] = Layer()
-                                self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
-                                    parsedDemo.layer].routes.append(Route(parsedDemo.getFlagId()))
-                                self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
-                                    parsedDemo.layer].routes[0].roundsPlayed.append(parsedDemo)
+        print "Statistics Calculated."
 
-                        else:
-                            self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode] = GameMode()
-                            self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
-                                parsedDemo.layer] = Layer()
+    #This function takes care of the parsedDemo to be placed into the right dict of the right map/gamemode/layer to create object structure
+    def demoToData(self,parsedDemo):
+        if parsedDemo.map != 0 and parsedDemo.playerCount > 80:
+            if parsedDemo.map in self.maps:
+                if parsedDemo.gameMode in self.maps[parsedDemo.map].gameModes:
+                    if parsedDemo.layer in self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers:
+                        found = False
+                        for index, route in enumerate(
+                                self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
+                                    parsedDemo.layer].routes, start=0):
+                            if route.id == parsedDemo.getFlagId():
+                                self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
+                                    parsedDemo.layer].routes[index].roundsPlayed.append(parsedDemo)
+                                found = True
+                        if found == False:
                             self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
                                 parsedDemo.layer].routes.append(Route(parsedDemo.getFlagId()))
                             self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
-                                parsedDemo.layer].routes[0].roundsPlayed.append(parsedDemo)
+                                parsedDemo.layer].routes[-1].roundsPlayed.append(parsedDemo)
                     else:
-                        self.maps[parsedDemo.map] = Map()
-                        self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode] = GameMode()
-                        self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[parsedDemo.layer] = Layer()
+                        self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
+                            parsedDemo.layer] = Layer()
                         self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
                             parsedDemo.layer].routes.append(Route(parsedDemo.getFlagId()))
                         self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
                             parsedDemo.layer].routes[0].roundsPlayed.append(parsedDemo)
+
+                else:
+                    self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode] = GameMode()
+                    self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
+                        parsedDemo.layer] = Layer()
+                    self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
+                        parsedDemo.layer].routes.append(Route(parsedDemo.getFlagId()))
+                    self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
+                        parsedDemo.layer].routes[0].roundsPlayed.append(parsedDemo)
+            else:
+                self.maps[parsedDemo.map] = Map()
+                self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode] = GameMode()
+                self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[parsedDemo.layer] = Layer()
+                self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
+                    parsedDemo.layer].routes.append(Route(parsedDemo.getFlagId()))
+                self.maps[parsedDemo.map].gameModes[parsedDemo.gameMode].layers[
+                    parsedDemo.layer].routes[0].roundsPlayed.append(parsedDemo)
+
+    #Parse all new PRdemo files in the demos folder. It also removes the files after parsing to avoid duplicate entries
+    def dataAggragation(self):
+        print "Parsing new PRDemos..."
+        for filename in os.listdir("./demos/"):
+            if filename.endswith(".PRdemo"):
+                parsedDemo = demoParser(filename).getParsedDemo()
+                self.demoToData(parsedDemo)
+        filelist = [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]
+        for f in filelist:
+            os.remove(os.path.join("./demos", f))
+        sys.stdout.flush()
+        sys.stdout.write("\rParsing of new PRDemos complete.\n")
+
+    #export the statistics to the /maps/mapname/data.json files
+    def exportStats(self):
+        print "Exporting statistics..."
+        for mapname, map in self.maps.iteritems():
+            with safe_open_w("./maps/" + mapname + "/data.json") as f:
+                f.write(map.toJSON())
+        print "Export of statistics complete."
+
+    #read and import existing data.json files of each map and gets the parsedDemos to be able to re-calculate the statistics
+    def importStats(self):
+        print "Importing existing statistics..."
+        for path, subdirs, files in os.walk("./maps"):
+            for name in files:
+                if fnmatch(name, "*.json"):
+                    sys.stdout.flush()
+                    sys.stdout.write("\rImporting existing " + path.split("./maps\\")[1] + " statistics ...")
+                    with open(os.path.join(path, name),'r') as f:
+                        mapData = f.read()
+                        mapObject = json2obj(mapData)
+                        for gamemode in mapObject.gameModes:
+                            for layer in gamemode.layers:
+                                for route in layer.routes:
+                                    for parsedDemo in route.roundsPlayed:
+                                        flags = []
+                                        for flag in parsedDemo.flags:
+                                            flags.append(Flag(flag.cpid,flag.x,flag.y,flag.z,flag.radius))
+                                        newDemo = ParsedDemo(parsedDemo.date,str(parsedDemo.map),str(parsedDemo.gameMode),str(parsedDemo.layer),parsedDemo.duration,parsedDemo.playerCount,parsedDemo.ticketsTeam1,parsedDemo.ticketsTeam2,flags)
+                                        newDemo.completed = True
+                                        self.demoToData(newDemo)
+        sys.stdout.flush()
+        sys.stdout.write("\rImport of existing statistics complete.\n")
 
 StatsParser()
