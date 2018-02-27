@@ -417,6 +417,12 @@ class StatsParser:
         for mapname, map in self.maps.iteritems():
             with safe_open_w("./maps/" + mapname + "/data.json") as f:
                 f.write(map.toJSON())
+        #create maplist.json in /maps/
+        mapList = [dI for dI in os.listdir('./maps') if os.path.isdir(os.path.join('./maps', dI))]
+        print mapList
+        if not os.path.isfile("./maps/maplist.json"):
+            with open("./maps/maplist.json", 'w') as outfile:
+                json.dump(mapList, outfile)
         print "Export of statistics complete."
 
     #read and import existing data.json files of each map and gets the parsedDemos to be able to re-calculate the statistics
