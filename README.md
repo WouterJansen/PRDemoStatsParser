@@ -5,4 +5,5 @@ Will create the statistics per map in the ```maps``` folder.
 
 After parsing the demos will be automatically removed!
 
+Data can then be used with https://github.com/WouterJansen/prbf2stats.
 For usage in Project Reality: Battlefield 2. http://www.realitymod.com
