@@ -4,7 +4,6 @@ import zlib
 import cStringIO
 import json
 import os, os.path
-import time
 import errno
 from collections import namedtuple
 from fnmatch import fnmatch
@@ -34,7 +33,7 @@ def safe_open_w(path):
 
 
 # Helper function to return a null terminated string from pos in buffer
-def getstring(stream):
+def getString(stream):
     tmp = ''
     while True:
         char = stream.read(1)
@@ -52,20 +51,22 @@ def unpack(stream, fmt):
 
     for i in range(0, len(fmt)):
         if fmt[i] == 'v':
-            index = unpack(stream, "h")
-            if index >= 0:
-                (name, seat) = unpack(stream, "sb")
-                values.append((index, name, seat))
+            vehid = unpack(stream, "h")
+            if vehid >= 0:
+                (vehname, vehseat) = unpack(stream, "sb")
+                values.append((vehid, vehname, vehseat))
             else:
-                values.append(index)
+                values.append((vehid))
 
         elif fmt[i] == 's':
-            string = getstring(stream)
+            string = getString(stream)
             values.append(string)
         else:
             size = struct.calcsize(fmt[i])
-            values.append(struct.unpack("<" + fmt[i], stream.read(size))[0])
-
+            try:
+                values.append(struct.unpack("<" + fmt[i], stream.read(size))[0])
+            except:
+                return -1;
     if len(values) == 1:
         return values[0]
     return values
@@ -114,7 +115,8 @@ class ParsedDemo(object):
         flagCPIDs = []
         for flag in self.flags:
             flagCPIDs.append(flag.cpid)
-        return "route_" + "_".join(str(x) for x in flagCPIDs)
+        flagCPIDs.sort()
+        return ("route_" + "_".join(str(x) for x in flagCPIDs)).strip()
 
 
 class MapList(object):
@@ -196,14 +198,12 @@ class demoParser:
         compressedFile = open("./demos/" + filename, 'rb')
         compressedBuffer = compressedFile.read()
         compressedFile.close()
-
         # Try to decompress or assume its not compressed if it fails
         try:
             buffer = zlib.decompress(compressedBuffer)
         except:
             buffer = compressedBuffer
         ####
-
         self.stream = cStringIO.StringIO(buffer)
         self.length = len(buffer)
 
@@ -215,9 +215,12 @@ class demoParser:
         sys.stdout.write("\rParsing " + filename + " ...")
         # print "Parsing " + filename + " ..."
         # parse the first few until serverDetails one to get map info
+        timeoutindex = 0
         while self.runMessage != 0x00:
+            if timeoutindex == 10000:
+                break
+            timeoutindex += 1
             pass
-
         self.runToEnd()
 
         # create ParsedDemo object and set it to complete if it was able to get alld data
@@ -244,10 +247,14 @@ class demoParser:
         messageLength = struct.unpack("H", tmp)[0]
 
         startPos = self.stream.tell()
-        messageType = struct.unpack("B", self.stream.read(1))[0]
+        try:
+            messageType = struct.unpack("B", self.stream.read(1))[0]
+        except:
+            return 0x99
 
         if messageType == 0x00:  # server details
             values = unpack(self.stream, "IfssBHHssBssIHH")
+            if values == -1: return 0x99
             self.mapName = values[7]
             self.mapGamemode = values[8]
             self.mapLayer = "layer_" + str(values[9])
@@ -256,33 +263,39 @@ class demoParser:
         elif messageType == 0x52:  # tickets team 1
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "H")
+                if values == -1: return 0x99
                 if values < 9000:
                     self.ticket1 = values
 
         elif messageType == 0x53:  # tickets team 2
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "H")
+                if values == -1: return 0x99
                 if values < 9000:
                     self.ticket2 = values
 
         elif messageType == 0xf1:  # tick
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "B")
+                if values == -1: return 0x99
                 self.timePlayed = self.timePlayed + values * 0.04
 
         elif messageType == 0x11:  # add player
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "Bsss")
+                if values == -1: return 0x99
                 self.players = self.players + 1
 
         elif messageType == 0x12:  # remove player
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "B")
+                if values == -1: return 0x99
                 self.players = self.players - 1
 
         elif messageType == 0x41:  # flaglist
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "HBHHHH")
+                if values == -1: return 0x99
                 self.flags.append(Flag(values[0], values[2], values[3], values[4], values[5]))
 
         else:
@@ -411,7 +424,7 @@ class StatsParser:
 
     # This function takes care of the parsedDemo to be placed into the right dict of the right map/gamemode/layer to create object structure
     def demoToData(self, parsedDemo):
-        if parsedDemo.map != 0 and parsedDemo.playerCount > 80:
+        if parsedDemo.map != 0 and ((parsedDemo.gameMode !="gpm_skirmish" and parsedDemo.playerCount > 80) or (parsedDemo.gameMode =="gpm_skirmish" and parsedDemo.playerCount > 20)):
             if parsedDemo.map in self.maps:
                 gameModeFound = False
                 for gameModeIndex, gameMode in enumerate(self.maps[parsedDemo.map].gameModes, start=0):
