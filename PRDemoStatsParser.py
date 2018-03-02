@@ -195,7 +195,7 @@ class demoParser:
 
         #create ParsedDemo object and set it to complete if it was able to get alld data
         try:
-            self.parsedDemo.setData(self.date, self.mapName, self.mapGamemode, self.mapLayer, self.timePlayed, self.players,
+            self.parsedDemo.setData(self.date, self.mapName, self.mapGamemode, self.mapLayer, self.timePlayed / 60, self.players,
                                       self.ticket1, self.ticket2, self.flags)
             self.parsedDemo.completed = True
         except:
