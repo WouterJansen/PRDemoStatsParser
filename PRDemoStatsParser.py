@@ -8,12 +8,15 @@ import errno
 from collections import namedtuple
 from fnmatch import fnmatch
 import datetime
-from tqdm import tqdm
+import time
+
+
+###############################
+#           HELPERS           #
+###############################
 
 # Helper functions to turn json files into namedtuple
 def _json_object_hook(d): return namedtuple('X', d.keys())(*d.values())
-
-
 def json2obj(data): return json.loads(data, object_hook=_json_object_hook)
 
 
@@ -26,8 +29,6 @@ def mkdir_p(path):
             pass
         else:
             raise
-
-
 def safe_open_w(path):
     mkdir_p(os.path.dirname(path))
     return open(path, 'w')
@@ -72,9 +73,36 @@ def unpack(stream, fmt):
         return values[0]
     return values
 
+# Helper function to through a folder and list all files
+def walkdir(folder):
+    for dirpath, dirs, files in os.walk(folder):
+        for filename in files:
+            yield os.path.abspath(os.path.join(dirpath, filename))
+
+# Helper function to show progress bar
+def update_progress(progress,message):
+    barLength = 20
+    status = message
+    if isinstance(progress, int):
+        progress = float(progress)
+    if not isinstance(progress, float):
+        progress = 0
+        status = "error: progress var must be float\r\n"
+    if progress < 0:
+        progress = 0
+        status = "Halt...\r\n"
+    if progress >= 1:
+        progress = 1
+        status = "Done\r\n"
+    block = int(round(barLength*progress))
+    text = "\r[{0}] {1}% {2}".format( "#"*block + "-"*(barLength-block), round(progress*100,2), status)
+    sys.stdout.write(text)
+    sys.stdout.flush()
+
 
 ###############################
-
+#          CLASSES            #
+###############################
 class Flag(object):
 
     def __init__(self, cpid, x, y, z, radius):
@@ -316,14 +344,6 @@ class demoParser:
         while self.runTick():
             pass
 
-
-def walkdir(folder):
-    """Walk through each files in a directory"""
-    for dirpath, dirs, files in os.walk(folder):
-        for filename in files:
-            yield os.path.abspath(os.path.join(dirpath, filename))
-
-
 class StatsParser:
     maps = {}
 
@@ -427,7 +447,7 @@ class StatsParser:
             self.maps[mapname].averageDuration = mapTotalDuration / self.maps[mapname].timesPlayed
         print "Statistics Calculated."
 
-    # This function takes care of the parsedDemo to be placed into the right dict of the right map/gamemode/layer to create object structure
+    # Map the parsedDemo to the correct structure in the statistics based on Map,GameMode,Layer,Route
     def demoToData(self, parsedDemo):
         if parsedDemo.map != 0 and ((parsedDemo.gameMode !="gpm_skirmish" and parsedDemo.playerCount > 80) or (parsedDemo.gameMode =="gpm_skirmish" and parsedDemo.playerCount > 20)):
             if parsedDemo.map in self.maps:
@@ -446,20 +466,20 @@ class StatsParser:
                                         self.maps[parsedDemo.map].gameModes[gameModeIndex].layers[
                                             layerIndex].routes[routeIndex].roundsPlayed.append(parsedDemo)
                                         routeFound = True
-                                if routeFound == False:
+                                if not routeFound:
                                     self.maps[parsedDemo.map].gameModes[gameModeIndex].layers[
                                         layerIndex].routes.append(Route(parsedDemo.getFlagId()))
                                     self.maps[parsedDemo.map].gameModes[gameModeIndex].layers[
                                         layerIndex].routes[-1].roundsPlayed.append(parsedDemo)
                             layerFound = True
-                        if layerFound == False:
+                        if not layerFound:
                             self.maps[parsedDemo.map].gameModes[gameModeIndex].layers.append(Layer(parsedDemo.layer))
                             self.maps[parsedDemo.map].gameModes[gameModeIndex].layers[-1].routes.append(
                                 Route(parsedDemo.getFlagId()))
                             self.maps[parsedDemo.map].gameModes[gameModeIndex].layers[-1].routes[0].roundsPlayed.append(
                                 parsedDemo)
                         gameModeFound = True
-                if gameModeFound == False:
+                if not gameModeFound:
                     self.maps[parsedDemo.map].gameModes.append(GameMode(parsedDemo.gameMode))
                     self.maps[parsedDemo.map].gameModes[-1].layers.append(Layer(parsedDemo.layer))
                     self.maps[parsedDemo.map].gameModes[-1].layers[0].routes.append(Route(parsedDemo.getFlagId()))
@@ -471,21 +491,21 @@ class StatsParser:
                 self.maps[parsedDemo.map].gameModes[0].layers[0].routes.append(Route(parsedDemo.getFlagId()))
                 self.maps[parsedDemo.map].gameModes[0].layers[0].routes[0].roundsPlayed.append(parsedDemo)
 
-
-    # Parse all new PRdemo files in the demos folder. It also removes the files after parsing to avoid duplicate entries
+    # Parse all PRdemo files in the demos folder. It also removes the files after parsing to avoid duplicate entries
     def dataAggragation(self):
         print "Parsing new PRDemos..."
         filecounter = 0
         for filepath in walkdir("./demos"):
             filecounter += 1
         if filecounter != 0:
-            t = tqdm(walkdir("./demos"), total=filecounter, unit="files", bar_format='{bar}{r_bar}{desc}', leave=False)
-            for filepath in t:
+            for index, filepath in enumerate(walkdir("./demos"), start=0):
                 head, tail = os.path.split(filepath)
-                t.set_description_str(" " + tail)
                 parsedDemo = demoParser(filepath).getParsedDemo()
                 self.demoToData(parsedDemo)
-            t.close()
+                update_progress(float(index)/filecounter,tail)
+            update_progress(1,"Done")
+            sys.stdout.flush()
+
             filelist = [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]
             for f in filelist:
                 os.remove(os.path.join("./demos", f))
@@ -493,7 +513,7 @@ class StatsParser:
         else:
             print "No PRDemos found."
 
-    # export the statistics to the /maps/mapname/data.json files
+    # Export the statistics to the /maps/mapname/data.json files
     def exportStats(self):
         print "Exporting statistics..."
         for mapname, map in self.maps.iteritems():
@@ -501,6 +521,7 @@ class StatsParser:
                 f.write(map.toJSON())
         print "Export of statistics complete."
 
+    # Create maplist.json with basic map statistics for map list overview
     def createMapList(self):
         print "Creating maplist..."
         mapList = MapList()
@@ -511,18 +532,16 @@ class StatsParser:
             f.write(mapList.toJSON())
         print "Created maplist."
 
-    # read and import existing data.json files of each map and gets the parsedDemos to be able to re-calculate the statistics
+    # Import existing data.json files of each map and gets the parsedDemos to be able to re-calculate the statistics
     def importStats(self):
         print "Importing existing statistics..."
-        filecounter = 0
+        filecounter = -1
         for filepath in walkdir("./maps"):
             filecounter += 1
         if filecounter > 1:
-            q = tqdm(walkdir("./maps"), total=filecounter - 1, unit="files", bar_format='{bar}{r_bar}{desc}', leave=False)
-            for filepath in q:
+            for index, filepath in enumerate(walkdir("./maps"), start=0):
                 if fnmatch(filepath, "*.json") and fnmatch(filepath, "*maplist.json") is False:
                     head, tail = os.path.split(filepath)
-                    q.set_description_str(" " + os.path.basename(os.path.normpath(head)))
                     with open(filepath, 'r') as f:
                         mapData = f.read()
                         mapObject = json2obj(mapData)
@@ -539,9 +558,8 @@ class StatsParser:
                                                              parsedDemo.ticketsTeam1, parsedDemo.ticketsTeam2, flags)
                                         newDemo.completed = True
                                         self.demoToData(newDemo)
-            q.clear()
-            q.close()
-            print "Import of existing statistics(" + str(filecounter -1) + ") complete."
+                    update_progress(float(index)/filecounter, os.path.basename(os.path.normpath(head)))
+            print "Import of existing statistics(" + str(filecounter) + ") complete."
         else:
             print "No existing statistics found."
 
