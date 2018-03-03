@@ -8,6 +8,7 @@ import errno
 from collections import namedtuple
 from fnmatch import fnmatch
 import datetime
+from tqdm import tqdm
 
 # Helper functions to turn json files into namedtuple
 def _json_object_hook(d): return namedtuple('X', d.keys())(*d.values())
@@ -195,7 +196,7 @@ class Route(object):
 # Parse .PRdemo file
 class demoParser:
     def __init__(self, filename):
-        compressedFile = open("./demos/" + filename, 'rb')
+        compressedFile = open(filename, 'rb')
         compressedBuffer = compressedFile.read()
         compressedFile.close()
         # Try to decompress or assume its not compressed if it fails
@@ -211,9 +212,6 @@ class demoParser:
         self.timePlayed = 0
         self.flags = []
         self.parsedDemo = ParsedDemo()
-        sys.stdout.flush()
-        sys.stdout.write("\rParsing " + filename + " ...")
-        # print "Parsing " + filename + " ..."
         # parse the first few until serverDetails one to get map info
         timeoutindex = 0
         while self.runMessage != 0x00:
@@ -317,6 +315,13 @@ class demoParser:
     def runToEnd(self):
         while self.runTick():
             pass
+
+
+def walkdir(folder):
+    """Walk through each files in a directory"""
+    for dirpath, dirs, files in os.walk(folder):
+        for filename in files:
+            yield os.path.abspath(os.path.join(dirpath, filename))
 
 
 class StatsParser:
@@ -466,18 +471,27 @@ class StatsParser:
                 self.maps[parsedDemo.map].gameModes[0].layers[0].routes.append(Route(parsedDemo.getFlagId()))
                 self.maps[parsedDemo.map].gameModes[0].layers[0].routes[0].roundsPlayed.append(parsedDemo)
 
+
     # Parse all new PRdemo files in the demos folder. It also removes the files after parsing to avoid duplicate entries
     def dataAggragation(self):
         print "Parsing new PRDemos..."
-        for filename in os.listdir("./demos/"):
-            if filename.endswith(".PRdemo"):
-                parsedDemo = demoParser(filename).getParsedDemo()
+        filecounter = 0
+        for filepath in walkdir("./demos"):
+            filecounter += 1
+        if filecounter != 0:
+            t = tqdm(walkdir("./demos"), total=filecounter, unit="files", bar_format='{bar}{r_bar}{desc}', leave=False)
+            for filepath in t:
+                head, tail = os.path.split(filepath)
+                t.set_description_str(" " + tail)
+                parsedDemo = demoParser(filepath).getParsedDemo()
                 self.demoToData(parsedDemo)
-        filelist = [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]
-        for f in filelist:
-            os.remove(os.path.join("./demos", f))
-        sys.stdout.flush()
-        sys.stdout.write("\rParsing of new PRDemos complete.\n")
+            t.close()
+            filelist = [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]
+            for f in filelist:
+                os.remove(os.path.join("./demos", f))
+            print "Parsing of new PRDemos(" + str(filecounter) +") complete."
+        else:
+            print "No PRDemos found."
 
     # export the statistics to the /maps/mapname/data.json files
     def exportStats(self):
@@ -500,12 +514,16 @@ class StatsParser:
     # read and import existing data.json files of each map and gets the parsedDemos to be able to re-calculate the statistics
     def importStats(self):
         print "Importing existing statistics..."
-        for path, subdirs, files in os.walk("./maps"):
-            for name in files:
-                if fnmatch(name, "*.json") and name != "maplist.json":
-                    sys.stdout.flush()
-                    sys.stdout.write("\rImporting existing " + path.split("./maps\\")[1] + " statistics ...")
-                    with open(os.path.join(path, name), 'r') as f:
+        filecounter = 0
+        for filepath in walkdir("./maps"):
+            filecounter += 1
+        if filecounter > 1:
+            q = tqdm(walkdir("./maps"), total=filecounter - 1, unit="files", bar_format='{bar}{r_bar}{desc}', leave=False)
+            for filepath in q:
+                if fnmatch(filepath, "*.json") and fnmatch(filepath, "*maplist.json") is False:
+                    head, tail = os.path.split(filepath)
+                    q.set_description_str(" " + os.path.basename(os.path.normpath(head)))
+                    with open(filepath, 'r') as f:
                         mapData = f.read()
                         mapObject = json2obj(mapData)
                         for gamemode in mapObject.gameModes:
@@ -521,8 +539,11 @@ class StatsParser:
                                                              parsedDemo.ticketsTeam1, parsedDemo.ticketsTeam2, flags)
                                         newDemo.completed = True
                                         self.demoToData(newDemo)
-        sys.stdout.flush()
-        sys.stdout.write("\rImport of existing statistics complete.\n")
+            q.clear()
+            q.close()
+            print "Import of existing statistics(" + str(filecounter -1) + ") complete."
+        else:
+            print "No existing statistics found."
 
 
 StatsParser()
