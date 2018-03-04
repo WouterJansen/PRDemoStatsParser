@@ -242,7 +242,7 @@ class demoParser:
         self.parsedDemo = ParsedDemo()
         # parse the first few until serverDetails one to get map info
         timeoutindex = 0
-        while self.runMessage != 0x00:
+        while self.runMessage() != 0x00:
             if timeoutindex == 10000:
                 break
             timeoutindex += 1
@@ -261,8 +261,6 @@ class demoParser:
     def getParsedDemo(self):
         return self.parsedDemo
 
-    # Returns the message type
-    @property
     def runMessage(self):
         # Check if end of file
         tmp = self.stream.read(2)
@@ -332,7 +330,7 @@ class demoParser:
     # Returns false when roundend message recieved
     def runTick(self):
         while True:
-            messageType = self.runMessage
+            messageType = self.runMessage()
             if messageType == 0xf1:
                 return True
             if messageType == 0xf0:
@@ -502,7 +500,7 @@ class StatsParser:
                 head, tail = os.path.split(filepath)
                 parsedDemo = demoParser(filepath).getParsedDemo()
                 self.demoToData(parsedDemo)
-                update_progress(float(index)/filecounter,tail)
+                update_progress(float(index)/filecounter,"(" + str(index) + "/" + str(filecounter) + ") " + tail)
             update_progress(1,"Done")
             sys.stdout.flush()
 
@@ -558,7 +556,7 @@ class StatsParser:
                                                              parsedDemo.ticketsTeam1, parsedDemo.ticketsTeam2, flags)
                                         newDemo.completed = True
                                         self.demoToData(newDemo)
-                    update_progress(float(index)/filecounter, os.path.basename(os.path.normpath(head)))
+                    update_progress(float(index)/filecounter, "(" + str(index) + "/" + str(filecounter) + ") " + os.path.basename(os.path.normpath(head)))
             print "Import of existing statistics(" + str(filecounter) + ") complete."
         else:
             print "No existing statistics found."
