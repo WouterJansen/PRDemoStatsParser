@@ -101,8 +101,9 @@ def update_progress(progress,message):
 
 
 ###############################
-#          CLASSES            #
+#           CLASSES           #
 ###############################
+
 class Flag(object):
 
     def __init__(self, cpid, x, y, z, radius):
@@ -115,8 +116,9 @@ class Flag(object):
 
 class ParsedDemo(object):
 
-    def __init__(self, date=0, map=0, gameMode=0, layer=0, duration=0, playerCount=0, ticketsTeam1=0, ticketsTeam2=0,
+    def __init__(self,version=0, date=0, map=0, gameMode=0, layer=0, duration=0, playerCount=0, ticketsTeam1=0, ticketsTeam2=0,
                  flags=[]):
+        self.version = version
         self.map = map
         self.date = date
         self.gameMode = gameMode
@@ -127,7 +129,8 @@ class ParsedDemo(object):
         self.ticketsTeam2 = ticketsTeam2
         self.flags = flags
 
-    def setData(self, date, map, gameMode, layer, duration, playerCount, ticketsTeam1, ticketsTeam2, flags):
+    def setData(self, version, date, map, gameMode, layer, duration, playerCount, ticketsTeam1, ticketsTeam2, flags):
+        self.version = version
         self.date = date
         self.map = map
         self.gameMode = gameMode
@@ -172,6 +175,7 @@ class Map(object):
         self.winsTeam1 = 0
         self.winsTeam2 = 0
         self.draws = 0
+        self.versions =  []
 
     # Write object to JSON string
     def toJSON(self):
@@ -251,7 +255,7 @@ class demoParser:
 
         # create ParsedDemo object and set it to complete if it was able to get alld data
         try:
-            self.parsedDemo.setData(self.date, self.mapName, self.mapGamemode, self.mapLayer, self.timePlayed / 60,
+            self.parsedDemo.setData(self.version, self.date, self.mapName, self.mapGamemode, self.mapLayer, self.timePlayed / 60,
                                     self.players,
                                     self.ticket1, self.ticket2, self.flags)
             self.parsedDemo.completed = True
@@ -279,6 +283,8 @@ class demoParser:
         if messageType == 0x00:  # server details
             values = unpack(self.stream, "IfssBHHssBssIHH")
             if values == -1: return 0x99
+            version = values[3].split(']')[0].split(' ')
+            self.version = version[1]
             self.mapName = values[7]
             self.mapGamemode = values[8]
             self.mapLayer = "layer_" + str(values[9])
@@ -343,8 +349,7 @@ class demoParser:
             pass
 
 class StatsParser:
-    maps = {}
-
+    versions = {}
     def __init__(self):
         self.importStats()
         self.dataAggragation()
@@ -355,139 +360,155 @@ class StatsParser:
     # Calculate statistics such as times played and average tickets based on data
     def statsCalc(self):
         print "Calculating Statistics..."
-        for mapname, map in self.maps.iteritems():
-            mapTotalTickets1 = 0
-            mapTotalTickets2 = 0
-            mapTotalDuration = 0
-            for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
-                gamemodeTotalTickets1 = 0
-                gamemodeTotalTickets2 = 0
-                gamemodeTotalDuration = 0
-                for layerIndex, layer in enumerate(gameMode.layers, start=0):
-                    layerTotalTickets1 = 0
-                    layerTotalTickets2 = 0
-                    layerTotalDuration = 0
-                    for routeIndex, route in enumerate(layer.routes, start=0):
-                        self.maps[mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
-                            routeIndex].timesPlayed = len(route.roundsPlayed)
-                        self.maps[mapname].gameModes[gameModeIndex].layers[layerIndex].timesPlayed += len(
-                            route.roundsPlayed)
-                        self.maps[mapname].gameModes[gameModeIndex].timesPlayed += len(route.roundsPlayed)
-                        self.maps[mapname].timesPlayed += len(route.roundsPlayed)
-                        routeTotalTickets1 = 0
-                        routeTotalTickets2 = 0
-                        routeTotalDuration = 0
-                        winsTeam1 = 0
-                        winsTeam2 = 0
-                        draws = 0
-                        for parsedDemo in route.roundsPlayed:
-                            if parsedDemo.ticketsTeam1 > parsedDemo.ticketsTeam2:
-                                winsTeam1 += 1
-                            elif parsedDemo.ticketsTeam2 > parsedDemo.ticketsTeam1:
-                                winsTeam2 += 1
-                            else:
-                                draws += 1
-                            routeTotalTickets1 += parsedDemo.ticketsTeam1
-                            routeTotalTickets2 += parsedDemo.ticketsTeam2
-                            routeTotalDuration += parsedDemo.duration
-                            layerTotalTickets1 += parsedDemo.ticketsTeam1
-                            layerTotalTickets2 += parsedDemo.ticketsTeam2
-                            layerTotalDuration += parsedDemo.duration
-                            gamemodeTotalTickets1 += parsedDemo.ticketsTeam1
-                            gamemodeTotalTickets2 += parsedDemo.ticketsTeam2
-                            gamemodeTotalDuration += parsedDemo.duration
-                            mapTotalTickets1 += parsedDemo.ticketsTeam1
-                            mapTotalTickets2 += parsedDemo.ticketsTeam2
-                            mapTotalDuration += parsedDemo.duration
-                        self.maps[mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
-                            routeIndex].averageTicketsTeam1 = routeTotalTickets1 / len(route.roundsPlayed)
-                        self.maps[mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
-                            routeIndex].averageTicketsTeam2 = routeTotalTickets2 / len(route.roundsPlayed)
-                        self.maps[mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
-                            routeIndex].averageDuration = routeTotalDuration / len(route.roundsPlayed)
-                        self.maps[mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
-                            routeIndex].winsTeam1 = winsTeam1
-                        self.maps[mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
-                            routeIndex].winsTeam2 = winsTeam2
-                        self.maps[mapname].gameModes[gameModeIndex].layers[layerIndex].routes[routeIndex].draws += draws
-                        self.maps[mapname].gameModes[gameModeIndex].layers[layerIndex].winsTeam1 += winsTeam1
-                        self.maps[mapname].gameModes[gameModeIndex].layers[layerIndex].winsTeam2 += winsTeam2
-                        self.maps[mapname].gameModes[gameModeIndex].layers[layerIndex].draws += draws
-                        self.maps[mapname].gameModes[gameModeIndex].winsTeam1 += winsTeam1
-                        self.maps[mapname].gameModes[gameModeIndex].winsTeam2 += winsTeam2
-                        self.maps[mapname].gameModes[gameModeIndex].draws += draws
-                        self.maps[mapname].winsTeam1 += winsTeam1
-                        self.maps[mapname].winsTeam2 += winsTeam2
-                        self.maps[mapname].draws += draws
-                    self.maps[mapname].gameModes[gameModeIndex].layers[
-                        layerIndex].averageTicketsTeam1 = layerTotalTickets1 / \
-                                                          self.maps[mapname].gameModes[gameModeIndex].layers[
+        for versionname,version in self.versions.iteritems():
+            for mapname, map in version.iteritems():
+                mapTotalTickets1 = 0
+                mapTotalTickets2 = 0
+                mapTotalDuration = 0
+                for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
+                    gamemodeTotalTickets1 = 0
+                    gamemodeTotalTickets2 = 0
+                    gamemodeTotalDuration = 0
+                    for layerIndex, layer in enumerate(gameMode.layers, start=0):
+                        layerTotalTickets1 = 0
+                        layerTotalTickets2 = 0
+                        layerTotalDuration = 0
+                        for routeIndex, route in enumerate(layer.routes, start=0):
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
+                                routeIndex].timesPlayed = len(route.roundsPlayed)
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].timesPlayed += len(
+                                route.roundsPlayed)
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].timesPlayed += len(route.roundsPlayed)
+                            self.versions[versionname][mapname].timesPlayed += len(route.roundsPlayed)
+                            routeTotalTickets1 = 0
+                            routeTotalTickets2 = 0
+                            routeTotalDuration = 0
+                            winsTeam1 = 0
+                            winsTeam2 = 0
+                            draws = 0
+                            for parsedDemo in route.roundsPlayed:
+                                if parsedDemo.ticketsTeam1 > parsedDemo.ticketsTeam2:
+                                    winsTeam1 += 1
+                                elif parsedDemo.ticketsTeam2 > parsedDemo.ticketsTeam1:
+                                    winsTeam2 += 1
+                                else:
+                                    draws += 1
+                                routeTotalTickets1 += parsedDemo.ticketsTeam1
+                                routeTotalTickets2 += parsedDemo.ticketsTeam2
+                                routeTotalDuration += parsedDemo.duration
+                                layerTotalTickets1 += parsedDemo.ticketsTeam1
+                                layerTotalTickets2 += parsedDemo.ticketsTeam2
+                                layerTotalDuration += parsedDemo.duration
+                                gamemodeTotalTickets1 += parsedDemo.ticketsTeam1
+                                gamemodeTotalTickets2 += parsedDemo.ticketsTeam2
+                                gamemodeTotalDuration += parsedDemo.duration
+                                mapTotalTickets1 += parsedDemo.ticketsTeam1
+                                mapTotalTickets2 += parsedDemo.ticketsTeam2
+                                mapTotalDuration += parsedDemo.duration
+
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
+                                routeIndex].averageTicketsTeam1 = routeTotalTickets1 / len(route.roundsPlayed)
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
+                                routeIndex].averageTicketsTeam2 = routeTotalTickets2 / len(route.roundsPlayed)
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
+                                routeIndex].averageDuration = routeTotalDuration / len(route.roundsPlayed)
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
+                                routeIndex].winsTeam1 = winsTeam1
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
+                                routeIndex].winsTeam2 = winsTeam2
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].routes[routeIndex].draws += draws
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].winsTeam1 += winsTeam1
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].winsTeam2 += winsTeam2
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].draws += draws
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].winsTeam1 += winsTeam1
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].winsTeam2 += winsTeam2
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].draws += draws
+                            self.versions[versionname][mapname].winsTeam1 += winsTeam1
+                            self.versions[versionname][mapname].winsTeam2 += winsTeam2
+                            self.versions[versionname][mapname].draws += draws
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[
+                            layerIndex].averageTicketsTeam1 = layerTotalTickets1 / \
+                                                              self.versions[versionname][mapname].gameModes[gameModeIndex].layers[
+                                                                  layerIndex].timesPlayed
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[
+                            layerIndex].averageTicketsTeam2 = layerTotalTickets2 / \
+                                                              self.versions[versionname][mapname].gameModes[gameModeIndex].layers[
+                                                                  layerIndex].timesPlayed
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[
+                            layerIndex].averageDuration = layerTotalDuration / \
+                                                          self.versions[versionname][mapname].gameModes[gameModeIndex].layers[
                                                               layerIndex].timesPlayed
-                    self.maps[mapname].gameModes[gameModeIndex].layers[
-                        layerIndex].averageTicketsTeam2 = layerTotalTickets2 / \
-                                                          self.maps[mapname].gameModes[gameModeIndex].layers[
-                                                              layerIndex].timesPlayed
-                    self.maps[mapname].gameModes[gameModeIndex].layers[
-                        layerIndex].averageDuration = layerTotalDuration / \
-                                                      self.maps[mapname].gameModes[gameModeIndex].layers[
-                                                          layerIndex].timesPlayed
-                self.maps[mapname].gameModes[gameModeIndex].averageTicketsTeam1 = gamemodeTotalTickets1 / \
-                                                                                  self.maps[mapname].gameModes[
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].averageTicketsTeam1 = gamemodeTotalTickets1 / \
+                                                                                                                      self.versions[
+                                                                                                                          versionname][mapname].gameModes[
+                                                                                          gameModeIndex].timesPlayed
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].averageTicketsTeam2 = gamemodeTotalTickets2 / \
+                                                                                                                      self.versions[
+                                                                                                                          versionname][mapname].gameModes[
+                                                                                          gameModeIndex].timesPlayed
+                            self.versions[versionname][mapname].gameModes[gameModeIndex].averageDuration = gamemodeTotalDuration / \
+                                                                                                                  self.versions[
+                                                                                                                      versionname][mapname].gameModes[
                                                                                       gameModeIndex].timesPlayed
-                self.maps[mapname].gameModes[gameModeIndex].averageTicketsTeam2 = gamemodeTotalTickets2 / \
-                                                                                  self.maps[mapname].gameModes[
-                                                                                      gameModeIndex].timesPlayed
-                self.maps[mapname].gameModes[gameModeIndex].averageDuration = gamemodeTotalDuration / \
-                                                                              self.maps[mapname].gameModes[
-                                                                                  gameModeIndex].timesPlayed
-            self.maps[mapname].averageTicketsTeam1 = mapTotalTickets1 / self.maps[mapname].timesPlayed
-            self.maps[mapname].averageTicketsTeam2 = mapTotalTickets2 / self.maps[mapname].timesPlayed
-            self.maps[mapname].averageDuration = mapTotalDuration / self.maps[mapname].timesPlayed
+                            self.versions[versionname][mapname].averageTicketsTeam1 = mapTotalTickets1 / self.versions[versionname][mapname].timesPlayed
+                            self.versions[versionname][mapname].averageTicketsTeam2 = mapTotalTickets2 / self.versions[versionname][mapname].timesPlayed
+                            self.versions[versionname][mapname].averageDuration = mapTotalDuration / self.versions[versionname][mapname].timesPlayed
         print "Statistics Calculated."
 
     # Map the parsedDemo to the correct structure in the statistics based on Map,GameMode,Layer,Route
     def demoToData(self, parsedDemo):
         if parsedDemo.map != 0 and ((parsedDemo.gameMode !="gpm_skirmish" and parsedDemo.playerCount > 80) or (parsedDemo.gameMode =="gpm_skirmish" and parsedDemo.playerCount > 20)):
-            if parsedDemo.map in self.maps:
-                gameModeFound = False
-                for gameModeIndex, gameMode in enumerate(self.maps[parsedDemo.map].gameModes, start=0):
-                    if gameMode.name == parsedDemo.gameMode:
-                        layerFound = False
-                        for layerIndex, layer in enumerate(self.maps[parsedDemo.map].gameModes[gameModeIndex].layers,
-                                                           start=0):
-                            if layer.name == parsedDemo.layer:
-                                routeFound = False
-                                for routeIndex, route in enumerate(
-                                        self.maps[parsedDemo.map].gameModes[gameModeIndex].layers[
-                                            layerIndex].routes, start=0):
-                                    if route.id == parsedDemo.getFlagId():
-                                        self.maps[parsedDemo.map].gameModes[gameModeIndex].layers[
-                                            layerIndex].routes[routeIndex].roundsPlayed.append(parsedDemo)
-                                        routeFound = True
-                                if not routeFound:
-                                    self.maps[parsedDemo.map].gameModes[gameModeIndex].layers[
-                                        layerIndex].routes.append(Route(parsedDemo.getFlagId()))
-                                    self.maps[parsedDemo.map].gameModes[gameModeIndex].layers[
-                                        layerIndex].routes[-1].roundsPlayed.append(parsedDemo)
-                            layerFound = True
-                        if not layerFound:
-                            self.maps[parsedDemo.map].gameModes[gameModeIndex].layers.append(Layer(parsedDemo.layer))
-                            self.maps[parsedDemo.map].gameModes[gameModeIndex].layers[-1].routes.append(
-                                Route(parsedDemo.getFlagId()))
-                            self.maps[parsedDemo.map].gameModes[gameModeIndex].layers[-1].routes[0].roundsPlayed.append(
-                                parsedDemo)
-                        gameModeFound = True
-                if not gameModeFound:
-                    self.maps[parsedDemo.map].gameModes.append(GameMode(parsedDemo.gameMode))
-                    self.maps[parsedDemo.map].gameModes[-1].layers.append(Layer(parsedDemo.layer))
-                    self.maps[parsedDemo.map].gameModes[-1].layers[0].routes.append(Route(parsedDemo.getFlagId()))
-                    self.maps[parsedDemo.map].gameModes[-1].layers[0].routes[0].roundsPlayed.append(parsedDemo)
+            if parsedDemo.version in self.versions:
+                if parsedDemo.map in self.versions[parsedDemo.version]:
+                    gameModeFound = False
+                    for gameModeIndex, gameMode in enumerate(self.versions[parsedDemo.version][parsedDemo.map].gameModes, start=0):
+                        if gameMode.name == parsedDemo.gameMode:
+                            layerFound = False
+                            for layerIndex, layer in enumerate(self.versions[parsedDemo.version][parsedDemo.map].gameModes[gameModeIndex].layers,
+                                                               start=0):
+                                if layer.name == parsedDemo.layer:
+                                    routeFound = False
+                                    for routeIndex, route in enumerate(
+                                            self.versions[parsedDemo.version][parsedDemo.map].gameModes[gameModeIndex].layers[
+                                                layerIndex].routes, start=0):
+                                        if route.id == parsedDemo.getFlagId():
+                                            self.versions[parsedDemo.version][parsedDemo.map].gameModes[gameModeIndex].layers[
+                                                layerIndex].routes[routeIndex].roundsPlayed.append(parsedDemo)
+                                            routeFound = True
+                                    if not routeFound:
+                                        self.versions[parsedDemo.version][parsedDemo.map].gameModes[gameModeIndex].layers[
+                                            layerIndex].routes.append(Route(parsedDemo.getFlagId()))
+                                        self.versions[parsedDemo.version][parsedDemo.map].gameModes[gameModeIndex].layers[
+                                            layerIndex].routes[-1].roundsPlayed.append(parsedDemo)
+                                layerFound = True
+                            if not layerFound:
+                                self.versions[parsedDemo.version][parsedDemo.map].gameModes[gameModeIndex].layers.append(Layer(parsedDemo.layer))
+                                self.versions[parsedDemo.version][parsedDemo.map].gameModes[gameModeIndex].layers[-1].routes.append(
+                                    Route(parsedDemo.getFlagId()))
+                                self.versions[parsedDemo.version][parsedDemo.map].gameModes[gameModeIndex].layers[-1].routes[0].roundsPlayed.append(
+                                    parsedDemo)
+                            gameModeFound = True
+                    if not gameModeFound:
+                        self.versions[parsedDemo.version][parsedDemo.map].gameModes.append(GameMode(parsedDemo.gameMode))
+                        self.versions[parsedDemo.version][parsedDemo.map].gameModes[-1].layers.append(Layer(parsedDemo.layer))
+                        self.versions[parsedDemo.version][parsedDemo.map].gameModes[-1].layers[0].routes.append(Route(parsedDemo.getFlagId()))
+                        self.versions[parsedDemo.version][parsedDemo.map].gameModes[-1].layers[0].routes[0].roundsPlayed.append(parsedDemo)
+                else:
+                    self.versions[parsedDemo.version][parsedDemo.map] = Map(parsedDemo.map)
+                    self.versions[parsedDemo.version][parsedDemo.map].gameModes.append(GameMode(parsedDemo.gameMode))
+                    self.versions[parsedDemo.version][parsedDemo.map].gameModes[0].layers.append(Layer(parsedDemo.layer))
+                    self.versions[parsedDemo.version][parsedDemo.map].gameModes[0].layers[0].routes.append(Route(parsedDemo.getFlagId()))
+                    self.versions[parsedDemo.version][parsedDemo.map].gameModes[0].layers[0].routes[0].roundsPlayed.append(parsedDemo)
             else:
-                self.maps[parsedDemo.map] = Map(parsedDemo.map)
-                self.maps[parsedDemo.map].gameModes.append(GameMode(parsedDemo.gameMode))
-                self.maps[parsedDemo.map].gameModes[0].layers.append(Layer(parsedDemo.layer))
-                self.maps[parsedDemo.map].gameModes[0].layers[0].routes.append(Route(parsedDemo.getFlagId()))
-                self.maps[parsedDemo.map].gameModes[0].layers[0].routes[0].roundsPlayed.append(parsedDemo)
+                self.versions[parsedDemo.version] = {}
+                self.versions[parsedDemo.version][parsedDemo.map] = Map(parsedDemo.map)
+                self.versions[parsedDemo.version][parsedDemo.map].gameModes.append(GameMode(parsedDemo.gameMode))
+                self.versions[parsedDemo.version][parsedDemo.map].gameModes[0].layers.append(
+                    Layer(parsedDemo.layer))
+                self.versions[parsedDemo.version][parsedDemo.map].gameModes[0].layers[0].routes.append(
+                    Route(parsedDemo.getFlagId()))
+                self.versions[parsedDemo.version][parsedDemo.map].gameModes[0].layers[0].routes[
+                    0].roundsPlayed.append(parsedDemo)
 
     # Parse all PRdemo files in the demos folder. It also removes the files after parsing to avoid duplicate entries
     def dataAggragation(self):
@@ -514,18 +535,39 @@ class StatsParser:
     # Export the statistics to the /maps/mapname/data.json files
     def exportStats(self):
         print "Exporting statistics..."
-        for mapname, map in self.maps.iteritems():
-            with safe_open_w("./maps/" + mapname + "/data.json") as f:
-                f.write(map.toJSON())
+        for versionname,version in self.versions.iteritems():
+            for mapname, map in version.iteritems():
+                with safe_open_w("./maps/" + versionname + "/" + mapname + "/data.json") as f:
+                    f.write(map.toJSON())
         print "Export of statistics complete."
 
     # Create maplist.json with basic map statistics for map list overview
     def createMapList(self):
         print "Creating maplist..."
         mapList = MapList()
-        for level in self.maps.itervalues():
-            del level.gameModes
-            mapList.maps.append(level)
+        for versionname,version in self.versions.iteritems():
+            for mapname, mapObject in version.iteritems():
+                mapfound = False
+                for index, map in enumerate(mapList.maps, start=0):
+                    if map.name == mapname:
+                        mapfound = True
+                        mapList.maps[index].versions.append(versionname)
+                        mapList.maps[index].timesPlayed += mapObject.timesPlayed
+                        mapList.maps[index].winsTeam1 += mapObject.winsTeam1
+                        mapList.maps[index].winsTeam2 += mapObject.winsTeam2
+                        mapList.maps[index].draws += mapObject.draws
+                        mapList.maps[index].averageDuration = (mapList.maps[index].averageDuration + mapObject.averageDuration) / 2
+                        mapList.maps[index].averageTicketsTeam1 = (mapList.maps[
+                                                                   index].averageTicketsTeam1 + mapObject.averageTicketsTeam1) / 2
+                        mapList.maps[index].averageTicketsTeam2 = (mapList.maps[
+                                                                   index].averageTicketsTeam2 + mapObject.averageTicketsTeam2) / 2
+                if mapfound == False:
+                    mapObject.versions.append(versionname)
+                    del mapObject.gameModes
+                    mapList.maps.append(mapObject)
+        for versionname, version in self.versions.iteritems():
+            for mapname, mapObject in version.iteritems():
+                mapObject.versions.sort()
         with safe_open_w("./maps/maplist.json") as f:
             f.write(mapList.toJSON())
         print "Created maplist."
@@ -550,13 +592,13 @@ class StatsParser:
                                         flags = []
                                         for flag in parsedDemo.flags:
                                             flags.append(Flag(flag.cpid, flag.x, flag.y, flag.z, flag.radius))
-                                        newDemo = ParsedDemo(parsedDemo.date, str(parsedDemo.map),
+                                        newDemo = ParsedDemo(parsedDemo.version, parsedDemo.date, str(parsedDemo.map),
                                                              str(parsedDemo.gameMode), str(parsedDemo.layer),
                                                              parsedDemo.duration, parsedDemo.playerCount,
                                                              parsedDemo.ticketsTeam1, parsedDemo.ticketsTeam2, flags)
                                         newDemo.completed = True
                                         self.demoToData(newDemo)
-                    update_progress(float(index)/filecounter, "(" + str(index) + "/" + str(filecounter) + ") " + os.path.basename(os.path.normpath(head)))
+                    update_progress(float(index)/filecounter, "(" + str(index) + "/" + str(filecounter) + ") " + os.path.split(os.path.split(head)[0])[1] + "/" + os.path.basename(os.path.normpath(head)))
             print "Import of existing statistics(" + str(filecounter) + ") complete."
         else:
             print "No existing statistics found."
