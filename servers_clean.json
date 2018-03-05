@@ -1,0 +1,30 @@
+{
+    "date": "2018-03-05 15:18:06.601000", 
+    "servers": [
+        {
+            "demos": [], 
+            "links": [ "http://64.237.49.109/br/demos/demos/" ], 
+            "name": "HOG"
+        },
+		{
+            "demos": [], 
+            "links": [ "http://br.ssg-clan.com/PR%20Tracker/" ], 
+            "name": "SSG"
+        },
+		{
+            "demos": [], 
+            "links": [ "http://veterans-gaming.com/demofiles/" ], 
+            "name": "VG"
+        },
+		{
+            "demos": [], 
+            "links": [ "http://62.210.96.7:800/ROG_Main_Server/ROG_Main_Tracker/","http://62.210.96.7:800/ROG_Coop_Server/ROG_Coop_Tracker/" ], 
+            "name": "ROG"
+        },
+		{
+            "demos": [], 
+            "links": [ "http://prsrv.newworldgaming.xyz/PRServer/Server01/tracker/" ], 
+            "name": "NWG"
+        }
+    ]
+}

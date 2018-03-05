@@ -9,7 +9,9 @@ from collections import namedtuple
 from fnmatch import fnmatch
 import datetime
 import time
-
+from bs4 import BeautifulSoup
+import requests
+import urllib
 
 ###############################
 #           HELPERS           #
@@ -149,6 +151,26 @@ class ParsedDemo(object):
             flagCPIDs.append(flag.cpid)
         flagCPIDs.sort()
         return ("route_" + "_".join(str(x) for x in flagCPIDs)).strip()
+
+
+class ServerList(object):
+
+    def __init__(self):
+        self.date = str(datetime.datetime.now())
+        self.servers = []
+
+    # Write object to JSON string
+    def toJSON(self):
+        return json.dumps(self, default=lambda o: o.__dict__,
+                          sort_keys=True, indent=4)
+
+
+class Server(object):
+
+    def __init__(self,name,links,demos):
+        self.name = name;
+        self.links = links
+        self.demos = demos;
 
 
 class MapList(object):
@@ -351,6 +373,7 @@ class demoParser:
 class StatsParser:
     versions = {}
     def __init__(self):
+        self.downloadDemos()
         self.importStats()
         self.dataAggragation()
         self.statsCalc()
@@ -602,6 +625,41 @@ class StatsParser:
             print "Import of existing statistics(" + str(filecounter) + ") complete."
         else:
             print "No existing statistics found."
+
+    def downloadDemos(self):
+        newServerList = ServerList()
+        with open('./servers.json', 'r') as f:
+            serverData = f.read()
+            serverList = json2obj(serverData)
+            toDownload = []
+            toDownloadServerNames = []
+            serverListNames = []
+            for serverIndex, server in enumerate(serverList.servers, start=0):
+                links = []
+                demos = server.demos
+                for linkIndex, link in enumerate(server.links, start=0):
+                    links.append(link)
+                    soup = BeautifulSoup(requests.get(link).text, 'html.parser')
+                    for demoUrl in [link + node.get('href') for node in soup.find_all('a') if
+                                    node.get('href').endswith('PRdemo')]:
+                        if os.path.basename(demoUrl) not in server.demos:
+                            if server.name not in serverListNames:
+                                serverListNames.append(server.name)
+                            toDownload.append(demoUrl)
+                            toDownloadServerNames.append(server.name)
+                            demos.append(os.path.basename(demoUrl))
+                newServerList.servers.append(Server(server.name, links, demos))
+            print "Downloading PRDemos from servers(" + ','.join(serverListNames) + ")..."
+            for demoIndex, demoUrl in enumerate(toDownload, start=0):
+                update_progress(float(demoIndex) / len(toDownload),
+                                "(" + str(demoIndex) + "/" + str(len(toDownload)) + ") " + toDownloadServerNames[
+                                    demoIndex] + "/" + os.path.basename(demoUrl))
+                urllib.urlretrieve(demoUrl, "./demos/" + os.path.basename(demoUrl))
+            update_progress(1,"Done")
+            sys.stdout.flush()
+        with safe_open_w("./servers.json") as f:
+            f.write(newServerList.toJSON())
+        print "All PRDemos from servers downloaded."
 
 
 StatsParser()
