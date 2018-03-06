@@ -78,6 +78,7 @@ def unpack(stream, fmt):
 # Helper function to through a folder and list all files
 def walkdir(folder):
     for dirpath, dirs, files in os.walk(folder):
+        files.sort()
         for filename in files:
             yield os.path.abspath(os.path.join(dirpath, filename))
 
@@ -267,7 +268,6 @@ class demoParser:
         self.flags = []
         self.parsedDemo = ParsedDemo()
         # parse the first few until serverDetails one to get map info
-        timeoutindex = 0
         while self.runMessage() != 0x00:
             if timeoutindex == 10000:
                 break
@@ -281,7 +281,7 @@ class demoParser:
                                     self.players,
                                     self.ticket1, self.ticket2, self.flags)
             self.parsedDemo.completed = True
-        except:
+        except Exception, e:
             pass
 
     def getParsedDemo(self):
@@ -292,16 +292,13 @@ class demoParser:
         tmp = self.stream.read(2)
         if len(tmp) != 2:
             return 0x99
-
         # Get 2 bytes of message length
         messageLength = struct.unpack("H", tmp)[0]
-
         startPos = self.stream.tell()
         try:
             messageType = struct.unpack("B", self.stream.read(1))[0]
-        except:
+        except Exception, e:
             return 0x99
-
         if messageType == 0x00:  # server details
             values = unpack(self.stream, "IfssBHHssBssIHH")
             if values == -1: return 0x99
@@ -386,6 +383,7 @@ class demoParser:
 
 class StatsParser:
     versions = {}
+
     def __init__(self):
         self.downloadDemos()
         self.importStats()
@@ -494,7 +492,7 @@ class StatsParser:
 
     # Map the parsedDemo to the correct structure in the statistics based on Map,GameMode,Layer,Route
     def demoToData(self, parsedDemo):
-        if parsedDemo.map != 0 and ((parsedDemo.gameMode !="gpm_skirmish" and parsedDemo.playerCount > 80) or (parsedDemo.gameMode =="gpm_skirmish" and parsedDemo.playerCount > 20)):
+        if parsedDemo.map != 0 and ((parsedDemo.gameMode !="COOP" and parsedDemo.playerCount > 5) or (parsedDemo.gameMode !="Skirmish" and parsedDemo.playerCount > 64) or (parsedDemo.gameMode =="Skirmish" and parsedDemo.playerCount > 16)):
             if parsedDemo.version in self.versions:
                 if parsedDemo.map in self.versions[parsedDemo.version]:
                     gameModeFound = False
@@ -552,15 +550,14 @@ class StatsParser:
         print "Parsing new PRDemos..."
         filecounter = 0
         for filepath in walkdir("./demos"):
-            filecounter += 1
+                filecounter += 1
         if filecounter != 0:
             for index, filepath in enumerate(walkdir("./demos"), start=0):
-                head, tail = os.path.split(filepath)
-                parsedDemo = demoParser(filepath).getParsedDemo()
-                self.demoToData(parsedDemo)
+                if os.stat(filepath).st_size > 10000:
+                    head, tail = os.path.split(filepath)
+                    parsedDemo = demoParser(filepath).getParsedDemo()
+                    self.demoToData(parsedDemo)
                 update_progress(float(index)/filecounter,"(" + str(index) + "/" + str(filecounter) + ") " + tail)
-            update_progress(1,"")
-            sys.stdout.flush()
 
             filelist = [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]
             for f in filelist:
@@ -689,6 +686,4 @@ class StatsParser:
         with safe_open_w("./servers.json") as f:
             f.write(newServerList.toJSON())
         print "All PRDemos from servers downloaded."
-
-
 StatsParser()
