@@ -95,7 +95,7 @@ def update_progress(progress,message):
         status = "Halt...\r\n"
     if progress >= 1:
         progress = 1
-        status = "Done\r\n"
+        status = "\r\n"
     block = int(round(barLength*progress))
     text = "\r[{0}] {1}% {2}".format( "#"*block + "-"*(barLength-block), round(progress*100,2), status)
     sys.stdout.write(text)
@@ -150,7 +150,7 @@ class ParsedDemo(object):
         for flag in self.flags:
             flagCPIDs.append(flag.cpid)
         flagCPIDs.sort()
-        return ("route_" + "_".join(str(x) for x in flagCPIDs)).strip()
+        return ("Route " + ", ".join(str(x) for x in flagCPIDs)).strip()
 
 
 class ServerList(object):
@@ -308,8 +308,22 @@ class demoParser:
             version = values[3].split(']')[0].split(' ')
             self.version = version[1]
             self.mapName = values[7]
-            self.mapGamemode = values[8]
-            self.mapLayer = "layer_" + str(values[9])
+            gamemode = values[8]
+            if gamemode == "gpm_cq":
+                self.mapGamemode = "Advance & Secure"
+            elif gamemode == "gpm_insurgency":
+                self.mapGamemode = "Insurgency"
+            elif gamemode == "gpm_vehicles":
+                self.mapGamemode = "Vehicle Warfare"
+            elif gamemode == "gpm_cnc":
+                self.mapGamemode = "Command & Control"
+            elif gamemode == "gpm_skirmish":
+                self.mapGamemode = "Skirmish"
+            elif gamemode == "gpm_coop":
+                self.mapGamemode = "Co-Operative"
+            else:
+                self.mapGamemode = values[8]
+            self.mapLayer = "Layer " + str(values[9])
             self.date = values[12]
 
         elif messageType == 0x52:  # tickets team 1
@@ -545,7 +559,7 @@ class StatsParser:
                 parsedDemo = demoParser(filepath).getParsedDemo()
                 self.demoToData(parsedDemo)
                 update_progress(float(index)/filecounter,"(" + str(index) + "/" + str(filecounter) + ") " + tail)
-            update_progress(1,"Done")
+            update_progress(1,"")
             sys.stdout.flush()
 
             filelist = [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]
@@ -568,6 +582,9 @@ class StatsParser:
     def createMapList(self):
         print "Creating maplist..."
         mapList = MapList()
+        with open("./maps.json", 'r') as f:
+            mapNamesData = f.read()
+            mapNames = json2obj(mapNamesData)
         for versionname,version in self.versions.iteritems():
             for mapname, mapObject in version.iteritems():
                 mapfound = False
@@ -585,6 +602,10 @@ class StatsParser:
                         mapList.maps[index].averageTicketsTeam2 = (mapList.maps[
                                                                    index].averageTicketsTeam2 + mapObject.averageTicketsTeam2) / 2
                 if mapfound == False:
+                    if hasattr(mapNames, mapname):
+                        mapObject.displayName = getattr(mapNames,mapname)
+                    else:
+                        mapObject.displayName = mapname
                     mapObject.versions.append(versionname)
                     del mapObject.gameModes
                     mapList.maps.append(mapObject)
@@ -655,7 +676,7 @@ class StatsParser:
                                 "(" + str(demoIndex) + "/" + str(len(toDownload)) + ") " + toDownloadServerNames[
                                     demoIndex] + "/" + os.path.basename(demoUrl))
                 urllib.urlretrieve(demoUrl, "./demos/" + os.path.basename(demoUrl))
-            update_progress(1,"Done")
+            update_progress(1,"")
             sys.stdout.flush()
         with safe_open_w("./servers.json") as f:
             f.write(newServerList.toJSON())
