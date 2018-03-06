@@ -582,9 +582,14 @@ class StatsParser:
     def createMapList(self):
         print "Creating maplist..."
         mapList = MapList()
-        with open("./maps.json", 'r') as f:
-            mapNamesData = f.read()
-            mapNames = json2obj(mapNamesData)
+        foundMapNames = False
+        try:
+            with open("./maps.json", 'r') as f:
+                mapNamesData = f.read()
+                mapNames = json2obj(mapNamesData)
+                foundMapNames = True
+        except:
+            pass
         for versionname,version in self.versions.iteritems():
             for mapname, mapObject in version.iteritems():
                 mapfound = False
@@ -602,8 +607,11 @@ class StatsParser:
                         mapList.maps[index].averageTicketsTeam2 = (mapList.maps[
                                                                    index].averageTicketsTeam2 + mapObject.averageTicketsTeam2) / 2
                 if mapfound == False:
-                    if hasattr(mapNames, mapname):
-                        mapObject.displayName = getattr(mapNames,mapname)
+                    if foundMapNames:
+                        if hasattr(mapNames, mapname):
+                            mapObject.displayName = getattr(mapNames,mapname)
+                        else:
+                            mapObject.displayName = mapname
                     else:
                         mapObject.displayName = mapname
                     mapObject.versions.append(versionname)
