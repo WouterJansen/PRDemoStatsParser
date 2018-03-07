@@ -492,7 +492,7 @@ class StatsParser:
 
     # Map the parsedDemo to the correct structure in the statistics based on Map,GameMode,Layer,Route
     def demoToData(self, parsedDemo):
-        if parsedDemo.map != 0 and ((parsedDemo.gameMode !="COOP" and parsedDemo.playerCount > 5) or (parsedDemo.gameMode !="Skirmish" and parsedDemo.playerCount > 64) or (parsedDemo.gameMode =="Skirmish" and parsedDemo.playerCount > 16)):
+        if parsedDemo.map != 0 and ((parsedDemo.gameMode == "Co-Operative" and parsedDemo.playerCount > 5) or (parsedDemo.gameMode != "Co-Operative" and parsedDemo.gameMode != "Skirmish" and parsedDemo.playerCount > 64) or (parsedDemo.gameMode == "Skirmish" and parsedDemo.playerCount > 16)):
             if parsedDemo.version in self.versions:
                 if parsedDemo.map in self.versions[parsedDemo.version]:
                     gameModeFound = False
