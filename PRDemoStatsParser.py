@@ -553,8 +553,8 @@ class StatsParser:
                 filecounter += 1
         if filecounter != 0:
             for index, filepath in enumerate(walkdir("./demos"), start=0):
+                head, tail = os.path.split(filepath)
                 if os.stat(filepath).st_size > 10000:
-                    head, tail = os.path.split(filepath)
                     parsedDemo = demoParser(filepath).getParsedDemo()
                     self.demoToData(parsedDemo)
                 update_progress(float(index)/filecounter,"(" + str(index) + "/" + str(filecounter) + ") " + tail)
