@@ -15,8 +15,8 @@ Data can then be used with the webservice (https://github.com/WouterJansen/prbf2
             "links": [ "www.community1.com/tracker/server1/", "www.community1.com/tracker/server2/" ], 
             "name": "servername1"
         },
-		{
-		    "demos": [],
+	{
+	    "demos": [],
             "links": [ "www.community2.com/tracker/" ], 
             "name": "severname 2"
         }
