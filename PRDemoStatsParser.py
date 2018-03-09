@@ -414,7 +414,8 @@ class StatsParser:
                             self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].timesPlayed += len(
                                 route.roundsPlayed)
                             self.versions[versionname][mapname].gameModes[gameModeIndex].timesPlayed += len(route.roundsPlayed)
-                            self.versions[versionname][mapname].timesPlayed += len(route.roundsPlayed)
+                            if gameMode.name != "Co-Operative":
+                                self.versions[versionname][mapname].timesPlayed += len(route.roundsPlayed)
                             routeTotalTickets1 = 0
                             routeTotalTickets2 = 0
                             routeTotalDuration = 0
@@ -437,9 +438,10 @@ class StatsParser:
                                 gamemodeTotalTickets1 += parsedDemo.ticketsTeam1
                                 gamemodeTotalTickets2 += parsedDemo.ticketsTeam2
                                 gamemodeTotalDuration += parsedDemo.duration
-                                mapTotalTickets1 += parsedDemo.ticketsTeam1
-                                mapTotalTickets2 += parsedDemo.ticketsTeam2
-                                mapTotalDuration += parsedDemo.duration
+                                if gameMode.name != "Co-Operative":
+                                    mapTotalTickets1 += parsedDemo.ticketsTeam1
+                                    mapTotalTickets2 += parsedDemo.ticketsTeam2
+                                    mapTotalDuration += parsedDemo.duration
 
                             self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
                                 routeIndex].averageTicketsTeam1 = routeTotalTickets1 / len(route.roundsPlayed)
@@ -458,9 +460,10 @@ class StatsParser:
                             self.versions[versionname][mapname].gameModes[gameModeIndex].winsTeam1 += winsTeam1
                             self.versions[versionname][mapname].gameModes[gameModeIndex].winsTeam2 += winsTeam2
                             self.versions[versionname][mapname].gameModes[gameModeIndex].draws += draws
-                            self.versions[versionname][mapname].winsTeam1 += winsTeam1
-                            self.versions[versionname][mapname].winsTeam2 += winsTeam2
-                            self.versions[versionname][mapname].draws += draws
+                            if gameMode.name != "Co-Operative":
+                                self.versions[versionname][mapname].winsTeam1 += winsTeam1
+                                self.versions[versionname][mapname].winsTeam2 += winsTeam2
+                                self.versions[versionname][mapname].draws += draws
                             self.versions[versionname][mapname].gameModes[gameModeIndex].layers[
                             layerIndex].averageTicketsTeam1 = layerTotalTickets1 / \
                                                               self.versions[versionname][mapname].gameModes[gameModeIndex].layers[
@@ -485,14 +488,15 @@ class StatsParser:
                                                                                                                   self.versions[
                                                                                                                       versionname][mapname].gameModes[
                                                                                       gameModeIndex].timesPlayed
-                            self.versions[versionname][mapname].averageTicketsTeam1 = mapTotalTickets1 / self.versions[versionname][mapname].timesPlayed
-                            self.versions[versionname][mapname].averageTicketsTeam2 = mapTotalTickets2 / self.versions[versionname][mapname].timesPlayed
-                            self.versions[versionname][mapname].averageDuration = mapTotalDuration / self.versions[versionname][mapname].timesPlayed
+                            if gameMode.name != "Co-Operative":
+                                self.versions[versionname][mapname].averageTicketsTeam1 = mapTotalTickets1 / self.versions[versionname][mapname].timesPlayed
+                                self.versions[versionname][mapname].averageTicketsTeam2 = mapTotalTickets2 / self.versions[versionname][mapname].timesPlayed
+                                self.versions[versionname][mapname].averageDuration = mapTotalDuration / self.versions[versionname][mapname].timesPlayed
         print "Statistics Calculated."
 
     # Map the parsedDemo to the correct structure in the statistics based on Map,GameMode,Layer,Route
     def demoToData(self, parsedDemo):
-        if parsedDemo.map != 0 and ((parsedDemo.gameMode == "Co-Operative" and parsedDemo.playerCount > 5) or (parsedDemo.gameMode != "Co-Operative" and parsedDemo.gameMode != "Skirmish" and parsedDemo.playerCount > 64) or (parsedDemo.gameMode == "Skirmish" and parsedDemo.playerCount > 16)):
+        if parsedDemo.map != 0 and ((parsedDemo.gameMode == "Co-Operative" and parsedDemo.playerCount > 2) or (parsedDemo.gameMode != "Co-Operative" and parsedDemo.gameMode != "Skirmish" and parsedDemo.playerCount > 64) or (parsedDemo.gameMode == "Skirmish" and parsedDemo.playerCount > 8)):
             if parsedDemo.version in self.versions:
                 if parsedDemo.map in self.versions[parsedDemo.version]:
                     gameModeFound = False
