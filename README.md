@@ -1,6 +1,6 @@
 # PRDemoStatsParser
 Script for generating map stats from PRDemo(PR Tracker) files.
-Will create the statistics per map in the ```maps``` folder.
+Will create the statistics per map in the ```data``` folder.
 Data can then be used with the webservice (https://github.com/WouterJansen/prbf2stats).
 
 ## Requirements
@@ -24,12 +24,19 @@ Data can then be used with the webservice (https://github.com/WouterJansen/prbf2
 }
 ```
 ## Optional
-* Supports a localization file ```maps.json``` next to the script to allow for a different displayed name for the map.
-Format:
+* Supports a folder ```input``` with all minimaps as jpg's of size 512x512 with their name as the mapname. And a ```maps.json``` next to the images with information on the display name and the scale of the map(1,2,4 or 8):
 ```javascript
 {
-    "assault_on_grozny": "Assault on Grozny",
-	"iron_thunder": "Operation Thunder"
+  {
+    "displayName": "Al Basrah",
+    "name":"albasrah_2",
+    "size": 2
+  },
+    {
+    "displayName": "Operation Thunder - BETA",
+    "name":"iron_thunder",
+    "size": 4
+  }
 }
 ```
 ## Important
