@@ -14,7 +14,7 @@ import requests
 import urllib
 import numpy as np
 import matplotlib.pyplot as plt
-
+np.set_printoptions(threshold=np.inf)
 ###############################
 #           HELPERS           #
 ###############################
@@ -122,7 +122,7 @@ class Flag(object):
 class ParsedDemo(object):
 
     def __init__(self,version=0, date=0, map=0, gameMode=0, layer=0, duration=0, playerCount=0, ticketsTeam1=0, ticketsTeam2=0,
-                 flags=[],heatMap = 0):
+                 flags=[],heatMap = None):
         self.version = version
         self.map = map
         self.date = date
@@ -135,7 +135,7 @@ class ParsedDemo(object):
         self.flags = flags
         self.heatMap = heatMap
 
-    def setData(self, version, date, map, gameMode, layer, duration, playerCount, ticketsTeam1, ticketsTeam2, flags,heatmap):
+    def setData(self, version, date, map, gameMode, layer, duration, playerCount, ticketsTeam1, ticketsTeam2, flags,heatMap):
         self.version = version
         self.date = date
         self.map = map
@@ -146,7 +146,7 @@ class ParsedDemo(object):
         self.ticketsTeam1 = ticketsTeam1
         self.ticketsTeam2 = ticketsTeam2
         self.flags = flags
-        self.heatmap = heatMap
+        self.heatMap = heatMap
 
     # TODO Implement SGID method
     # Create ID of flag route based on CPID list (placeholder until SGID is available to calculate route ID)
@@ -203,7 +203,6 @@ class Map(object):
         self.winsTeam2 = 0
         self.draws = 0
         self.versions =  []
-        self.heatMap = 0
 
     # Write object to JSON string
     def toJSON(self):
@@ -223,7 +222,6 @@ class GameMode(object):
         self.winsTeam1 = 0
         self.winsTeam2 = 0
         self.draws = 0
-        self.heatMap = 0
 
 
 class Layer(object):
@@ -238,7 +236,6 @@ class Layer(object):
         self.winsTeam1 = 0
         self.winsTeam2 = 0
         self.draws = 0
-        self.heatMap = 0
 
 class Route(object):
 
@@ -275,7 +272,6 @@ class demoParser:
         ####
         self.stream = cStringIO.StringIO(buffer)
         self.length = len(buffer)
-        self.playerslist = {}
         self.players = 0
         self.timePlayed = 0
         self.flags = []
@@ -310,15 +306,16 @@ class demoParser:
 
         # plt.imshow(self.heatMap, cmap='afmhot', interpolation='nearest')
         # plt.show()
-
+        # print self.heatMap
         # create ParsedDemo object and set it to complete if it was able to get alld data
-        try:
-            self.parsedDemo.setData(self.version, self.date, self.mapName, self.mapGamemode, self.mapLayer, self.timePlayed / 60,
+        # try:
+        self.parsedDemo.setData(self.version, self.date, self.mapName, self.mapGamemode, self.mapLayer, self.timePlayed / 60,
                                     self.players,
                                     self.ticket1, self.ticket2, self.flags,self.heatMap)
-            self.parsedDemo.completed = True
-        except Exception, e:
-            pass
+        self.parsedDemo.completed = True
+        # except Exception, e:
+        #     print "test"
+        #     pass
 
     def getParsedDemo(self):
         self.mapName
@@ -332,7 +329,7 @@ class demoParser:
                 if hasattr(mapInfo, self.mapName):
                     self.scale = getattr(mapInfo, self.mapName).scale
         except:
-            self.heatMap = 0
+            self.heatMap = None
             pass
 
     def runMessage(self):
@@ -395,7 +392,7 @@ class demoParser:
         elif messageType == 0x10:  # update player
             while self.stream.tell() - startPos != messageLength:
                 flags = unpack(self.stream, "H")
-                p = self.playerslist[unpack(self.stream, "B")]
+                unpack(self.stream, "B")
                 for tuple in self.PLAYERFLAGS:
                     field, bit, fmt = tuple
                     if flags & bit:
@@ -458,9 +455,11 @@ class StatsParser:
         #self.downloadDemos()
         #self.importStats()
         self.dataAggragation()
-        #self.statsCalc()
-        #self.exportStats()
-        #self.createMapList()
+        self.generateHeatMaps()
+        self.statsCalc()
+        self.exportStats()
+        self.createMapList()
+
 
     # Calculate statistics such as times played and average tickets based on data
     def statsCalc(self):
@@ -470,17 +469,14 @@ class StatsParser:
                 mapTotalTickets1 = 0
                 mapTotalTickets2 = 0
                 mapTotalDuration = 0
-                mapHeatMap = np.zeros(shape=(512, 512))
                 for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
                     gamemodeTotalTickets1 = 0
                     gamemodeTotalTickets2 = 0
                     gamemodeTotalDuration = 0
-                    gamemodeHeatMap = np.zeros(shape=(512, 512))
                     for layerIndex, layer in enumerate(gameMode.layers, start=0):
                         layerTotalTickets1 = 0
                         layerTotalTickets2 = 0
                         layerTotalDuration = 0
-                        layerHeatMap = np.zeros(shape=(512, 512))
                         for routeIndex, route in enumerate(layer.routes, start=0):
                             self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
                                 routeIndex].timesPlayed = len(route.roundsPlayed)
@@ -495,7 +491,6 @@ class StatsParser:
                             winsTeam1 = 0
                             winsTeam2 = 0
                             draws = 0
-                            routeHeatMap = np.zeros(shape=(512, 512))
                             for parsedDemo in route.roundsPlayed:
                                 if parsedDemo.ticketsTeam1 > parsedDemo.ticketsTeam2:
                                     winsTeam1 += 1
@@ -503,8 +498,6 @@ class StatsParser:
                                     winsTeam2 += 1
                                 else:
                                     draws += 1
-                                if parsedDemo.heatMap != 0:
-                                    routeHeatMap = routeHeatMap + parsedDemo.heatMap
                                 routeTotalTickets1 += parsedDemo.ticketsTeam1
                                 routeTotalTickets2 += parsedDemo.ticketsTeam2
                                 routeTotalDuration += parsedDemo.duration
@@ -529,8 +522,6 @@ class StatsParser:
                             self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
                                 routeIndex].winsTeam2 = winsTeam2
                             self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].routes[routeIndex].draws += draws
-                            self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].routes[
-                                routeIndex].heatMap == routeHeatMap
                             self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].winsTeam1 += winsTeam1
                             self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].winsTeam2 += winsTeam2
                             self.versions[versionname][mapname].gameModes[gameModeIndex].layers[layerIndex].draws += draws
@@ -654,6 +645,12 @@ class StatsParser:
         for versionname,version in self.versions.iteritems():
             for mapname, map in version.iteritems():
                 with safe_open_w("./data/" + versionname + "/" + mapname + "/data.json") as f:
+                    for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
+                        for layerIndex, layer in enumerate(gameMode.layers, start=0):
+                            for routeIndex, route in enumerate(layer.routes, start=0):
+                                for demoIndex, demo in enumerate(route.roundsPlayed, start=0):
+                                    del self.versions[versionname][mapname].gameModes[gameModeIndex].layers[
+                                        layerIndex].routes[routeIndex].roundsPlayed[demoIndex].heatMap
                     f.write(map.toJSON())
         print "Export of statistics complete."
 
@@ -769,6 +766,29 @@ class StatsParser:
             f.write(newServerList.toJSON())
         print "All PRDemos from servers downloaded."
 
-    def generateHeatmaps(self):
+    def generateHeatMaps(self):
         print "Generating heatmaps..."
+        for versionname,version in self.versions.iteritems():
+            for mapname, map in version.iteritems():
+                mapHeatMap = np.zeros(shape=(512, 512))
+                for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
+                    gameModeHeatMap = np.zeros(shape=(512, 512))
+                    for layerIndex, layer in enumerate(gameMode.layers, start=0):
+                        layerHeatMap = np.zeros(shape=(512, 512))
+                        for routeIndex, route in enumerate(layer.routes, start=0):
+                            routeHeatMap = np.zeros(shape=(512, 512))
+                            for parsedDemo in route.roundsPlayed:
+                                routeHeatMap = routeHeatMap + parsedDemo.heatMap
+                                layerHeatMap = layerHeatMap + parsedDemo.heatMap
+                                gameModeHeatMap = gameModeHeatMap + parsedDemo.heatMap
+                                mapHeatMap = mapHeatMap + parsedDemo.heatMap
+                            np.savetxt("data/" + versionname + "/" + mapname + "/routeHeatMap_" + route.id + ".heatMap", routeHeatMap)
+                        np.savetxt("data/" + versionname + "/" + mapname + "/layerHeatMap_" + layer.name + ".heatMap",
+                                   layerHeatMap)
+                    np.savetxt("data/" + versionname + "/" + mapname + "/gameModeHeatMap_" + gameMode.name + ".heatMap",
+                               gameModeHeatMap)
+                np.savetxt("data/" + versionname + "/" + mapname + "/mapHeatMap.heatMap",
+                           mapHeatMap)
+
+
 StatsParser()
