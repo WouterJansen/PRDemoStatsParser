@@ -14,7 +14,6 @@ import requests
 import urllib
 import numpy as np
 import matplotlib.pyplot as plt
-np.set_printoptions(threshold=np.inf)
 ###############################
 #           HELPERS           #
 ###############################
@@ -251,7 +250,7 @@ class Route(object):
         self.draws = 0
         self.heatMap = 0
 
-class player:
+class Player:
     def __init__(self):
         self.isalive = 0
 
@@ -272,11 +271,12 @@ class demoParser:
         ####
         self.stream = cStringIO.StringIO(buffer)
         self.length = len(buffer)
-        self.players = 0
+        self.playerCount = 0
         self.timePlayed = 0
         self.flags = []
         self.parsedDemo = ParsedDemo()
         self.scale = 0
+        self.playerDict = {}
         self.PLAYERFLAGS = [
             ('team', 1, 'B'),
             ('squad', 2, 'B'),
@@ -304,12 +304,11 @@ class demoParser:
             pass
         self.runToEnd()
 
-
         # create ParsedDemo object and set it to complete if it was able to get alld data
         try:
             self.parsedDemo.setData(self.version, self.date, self.mapName, self.mapGamemode, self.mapLayer, self.timePlayed / 60,
-                                    self.players,
-                                    self.ticket1, self.ticket2, self.flags,self.heatMap)
+                                    self.playerCount,
+                                    self.ticket1, self.ticket2, self.flags,self.heatMap.astype(int))
             self.parsedDemo.completed = True
         except Exception, e:
             print e
@@ -344,7 +343,7 @@ class demoParser:
             return 0x99
         if messageType == 0x00:  # server details
             values = unpack(self.stream, "IfssBHHssBssIHH")
-            if values == -1: return 0x99
+            if values == -1: print "wot1"
             version = values[3].split(']')[0].split(' ')
             self.version = version[1]
             self.mapName = values[7]
@@ -370,64 +369,67 @@ class demoParser:
         elif messageType == 0x52:  # tickets team 1
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "H")
-                if values == -1: return 0x99
+                if values == -1: print "wot2"
                 if values < 9000:
                     self.ticket1 = values
+                else:
+                    self.ticket1 = 0
 
         elif messageType == 0x53:  # tickets team 2
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "H")
-                if values == -1: return 0x99
+                if values == -1: print "wot3"
                 if values < 9000:
                     self.ticket2 = values
+                else:
+                    self.ticket2 = 0
 
         elif messageType == 0xf1:  # tick
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "B")
-                if values == -1: return 0x99
+                if values == -1: print "wot4"
                 self.timePlayed = self.timePlayed + values * 0.04
+                for playerID, player in self.playerDict.iteritems():
+                    if player.isalive:
+                        if player.pos[0] < 512 * self.scale and player.pos[0] > -512 * self.scale and player.pos[2] < 512 * self.scale and player.pos[2] > -512 * self.scale:
+                            x = int(round(player.pos[0] / (self.scale * 2) + 256))
+                            y = int(round(player.pos[2] / (self.scale * -2) + 256))
+                            self.heatMap[x - 1, y - 1] += 1
 
         elif messageType == 0x10 and self.scale != 0:  # update player
             while self.stream.tell() - startPos != messageLength:
                 flags = unpack(self.stream, "H")
-                if flags == -1:
-                    print "fak"
-                player = unpack(self.stream, "B")
-                if player == -1:
-                    print "wtf"
+                p = self.playerDict[unpack(self.stream, "B")]
                 for tuple in self.PLAYERFLAGS:
                     field, bit, fmt = tuple
                     if flags & bit:
-                        if field == 'pos':
-                            coordinates = unpack(self.stream, fmt)
-                            if coordinates != -1:
-                                if coordinates[0] < 512*self.scale and coordinates[0] > -512*self.scale and coordinates[2] < 512*self.scale and coordinates[2] > -512*self.scale:
-                                    x = int(round(coordinates[0] / (self.scale * 2) + 256))
-                                    y = int(round(coordinates[2] / (self.scale * -2) + 256))
-                                    self.heatMap[x - 1,y - 1] += 1
-                            else:
-                                values = unpack(self.stream, fmt)
-                        else:
-                            values = unpack(self.stream, fmt)
+                        p[field] = unpack(self.stream, fmt)
 
 
 
         elif messageType == 0x11:  # add player
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "Bsss")
-                if values == -1: return 0x99
-                self.players = self.players + 1
+                if values == -1: print "wot6"
+                p = Player()
+                p.id = values[0]
+                p.name = values[1]
+                p.hash = values[2]
+                p.ip = values[3]
+                self.playerDict[values[0]] = p
+                self.playerCount += 1
 
         elif messageType == 0x12:  # remove player
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "B")
-                if values == -1: return 0x99
-                self.players = self.players - 1
+                if values == -1: print "wot7"
+                del self.playerDict[values]
+                self.playerCount -= 1
 
         elif messageType == 0x41:  # flaglist
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "HBHHHH")
-                if values == -1: return 0x99
+                if values == -1: print "wot8"
                 self.flags.append(Flag(values[0], values[2], values[3], values[4], values[5]))
 
         else:
@@ -628,12 +630,11 @@ class StatsParser:
         if filecounter != 0:
             for index, filepath in enumerate(walkdir("./demos"), start=0):
                 head, tail = os.path.split(filepath)
+                update_progress(float(index+1)/filecounter,"(" + str(index+1) + "/" + str(filecounter) + ") " + tail)
+
                 if os.stat(filepath).st_size > 10000:
                     parsedDemo = demoParser(filepath).getParsedDemo()
                     self.demoToData(parsedDemo)
-                update_progress(float(index)/filecounter,"(" + str(index) + "/" + str(filecounter) + ") " + tail)
-            update_progress(1,"")
-            sys.stdout.flush()
             # filelist = [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]
             # for f in filelist:
             #     os.remove(os.path.join("./demos", f))
@@ -786,7 +787,14 @@ class StatsParser:
                                 mapHeatMap = mapHeatMap + parsedDemo.heatMap
                             with safe_open_w("./data/" + versionname + "/" + mapname + "/" + route.id + ".heatMap") as f:
                                 np.save(f, routeHeatMap)
-                            test = plt.imshow(routeHeatMap, cmap='afmhot', interpolation='bilinear')
-                            test.figure.savefig("./data/" + versionname + "/" + mapname + "/" + route.id + ".png")
+                            routeImage = plt.imshow(routeHeatMap, cmap='afmhot', interpolation='bilinear')
+                            routeImage.figure.savefig("./data/" + versionname + "/" + mapname + "/HeatMap_" + gameMode.name.replace(" ","_") + "_" + layer.name.replace(" ","_") + "_" + route.id.replace(" ","_") + ".png")
+                        layerImage = plt.imshow(layerHeatMap, cmap='afmhot', interpolation='bilinear')
+                        layerImage.figure.savefig("./data/" + versionname + "/" + mapname + "/HeatMap_" + gameMode.name.replace(" ","_") + "_" + layer.name.replace(" ","_") + ".png")
+                    gameModeImage = plt.imshow(gameModeHeatMap, cmap='afmhot', interpolation='bilinear')
+                    gameModeImage.figure.savefig("./data/" + versionname + "/" + mapname + "/HeatMap_" + gameMode.name.replace(" ","_") + ".png")
+                mapImage = plt.imshow(mapHeatMap, cmap='afmhot', interpolation='bilinear')
+                mapImage.figure.savefig("./data/" + versionname + "/" + mapname + "/HeatMap_map.png")
+        print "Generated all heatmaps."
 
 StatsParser()
