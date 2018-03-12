@@ -304,18 +304,16 @@ class demoParser:
             pass
         self.runToEnd()
 
-        # plt.imshow(self.heatMap, cmap='afmhot', interpolation='nearest')
-        # plt.show()
-        # print self.heatMap
+
         # create ParsedDemo object and set it to complete if it was able to get alld data
-        # try:
-        self.parsedDemo.setData(self.version, self.date, self.mapName, self.mapGamemode, self.mapLayer, self.timePlayed / 60,
+        try:
+            self.parsedDemo.setData(self.version, self.date, self.mapName, self.mapGamemode, self.mapLayer, self.timePlayed / 60,
                                     self.players,
                                     self.ticket1, self.ticket2, self.flags,self.heatMap)
-        self.parsedDemo.completed = True
-        # except Exception, e:
-        #     print "test"
-        #     pass
+            self.parsedDemo.completed = True
+        except Exception, e:
+            print e
+            pass
 
     def getParsedDemo(self):
         self.mapName
@@ -389,24 +387,28 @@ class demoParser:
                 if values == -1: return 0x99
                 self.timePlayed = self.timePlayed + values * 0.04
 
-        elif messageType == 0x10:  # update player
+        elif messageType == 0x10 and self.scale != 0:  # update player
             while self.stream.tell() - startPos != messageLength:
                 flags = unpack(self.stream, "H")
-                unpack(self.stream, "B")
+                if flags == -1:
+                    print "fak"
+                player = unpack(self.stream, "B")
+                if player == -1:
+                    print "wtf"
                 for tuple in self.PLAYERFLAGS:
                     field, bit, fmt = tuple
                     if flags & bit:
                         if field == 'pos':
-                            if self.scale != 0:
-                                coordinates = unpack(self.stream, fmt)
-                                x = int(round(coordinates[0] / (self.scale * 2) + 256))
-                                y = int(round(coordinates[2] / (self.scale * -2) + 256))
-                                if x < 512 and y < 512:
+                            coordinates = unpack(self.stream, fmt)
+                            if coordinates != -1:
+                                if coordinates[0] < 512*self.scale and coordinates[0] > -512*self.scale and coordinates[2] < 512*self.scale and coordinates[2] > -512*self.scale:
+                                    x = int(round(coordinates[0] / (self.scale * 2) + 256))
+                                    y = int(round(coordinates[2] / (self.scale * -2) + 256))
                                     self.heatMap[x - 1,y - 1] += 1
                             else:
-                                unpack(self.stream, fmt)
+                                values = unpack(self.stream, fmt)
                         else:
-                            unpack(self.stream, fmt)
+                            values = unpack(self.stream, fmt)
 
 
 
@@ -782,13 +784,9 @@ class StatsParser:
                                 layerHeatMap = layerHeatMap + parsedDemo.heatMap
                                 gameModeHeatMap = gameModeHeatMap + parsedDemo.heatMap
                                 mapHeatMap = mapHeatMap + parsedDemo.heatMap
-                            np.savetxt("data/" + versionname + "/" + mapname + "/routeHeatMap_" + route.id + ".heatMap", routeHeatMap)
-                        np.savetxt("data/" + versionname + "/" + mapname + "/layerHeatMap_" + layer.name + ".heatMap",
-                                   layerHeatMap)
-                    np.savetxt("data/" + versionname + "/" + mapname + "/gameModeHeatMap_" + gameMode.name + ".heatMap",
-                               gameModeHeatMap)
-                np.savetxt("data/" + versionname + "/" + mapname + "/mapHeatMap.heatMap",
-                           mapHeatMap)
-
+                            with safe_open_w("./data/" + versionname + "/" + mapname + "/" + route.id + ".heatMap") as f:
+                                np.save(f, routeHeatMap)
+                            test = plt.imshow(routeHeatMap, cmap='afmhot', interpolation='bilinear')
+                            test.figure.savefig("./data/" + versionname + "/" + mapname + "/" + route.id + ".png")
 
 StatsParser()
