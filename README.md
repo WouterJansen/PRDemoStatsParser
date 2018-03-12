@@ -27,15 +27,13 @@ Data can then be used with the webservice (https://github.com/WouterJansen/prbf2
 * Supports a folder ```input``` with all minimaps as jpg's of size 512x512 with their name as the mapname. And a ```maps.json``` next to the images with information on the display name and the scale of the map(1,2,4 or 8):
 ```javascript
 {
-  {
+  "albasrah_2": {
     "displayName": "Al Basrah",
-    "name":"albasrah_2",
-    "size": 2
+    "scale": 2
   },
-    {
+  "iron_thunder": {
     "displayName": "Operation Thunder - BETA",
-    "name":"iron_thunder",
-    "size": 4
+    "scale": 4
   }
 }
 ```
