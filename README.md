@@ -1,7 +1,6 @@
 # PRDemoStatsParser
-Script for generating map stats from PRDemo(PR Tracker) files.
-Will create the statistics per map in the ```data``` folder.
-Data can then be used with the webservice (https://github.com/WouterJansen/prbf2stats).
+Script for generating data(statistics, heatmaps,...) from PRDemo(PR Tracker) files.
+Will create a ```data``` folder with all generated content. This can then be used with the webservice to display it. (https://github.com/WouterJansen/prbf2stats).
 
 ## Requirements
 * Python 2.7.
@@ -39,7 +38,6 @@ Data can then be used with the webservice (https://github.com/WouterJansen/prbf2
     ]
 }
 ```
-## Important
-* After parsing the demos will be automatically removed!
-
-For usage in Project Reality: Battlefield 2. http://www.realitymod.com
+## Notes 
+* After parsing the ```demos``` will be automatically cleared to save space.
+* For usage in Project Reality: Battlefield 2. http://www.realitymod.com
