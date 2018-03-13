@@ -789,16 +789,22 @@ class StatsParser:
         for versionname,version in self.versions.iteritems():
             for mapname, map in version.iteritems():
                 mapData = []
+                mapHeatMap = np.zeros(shape=(256, 256))
                 for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
                     gameModeData = []
+                    gameModeHeatMap = np.zeros(shape=(256, 256))
                     for layerIndex, layer in enumerate(gameMode.layers, start=0):
                         layerData = []
+                        layerHeatMap = np.zeros(shape=(256, 256))
                         for routeIndex, route in enumerate(layer.routes, start=0):
                             routeHeatMap = np.zeros(shape=(256, 256))
                             routeData = []
                             for parsedDemo in route.roundsPlayed:
                                 if type(parsedDemo.heatMap) != type(None):
                                     routeHeatMap = routeHeatMap + parsedDemo.heatMap
+                                    layerHeatMap = layerHeatMap + parsedDemo.heatMap
+                                    gameModeHeatMap = gameModeHeatMap + parsedDemo.heatMap
+                                    mapHeatMap = mapHeatMap + parsedDemo.heatMap
                             try:
                                 k = np.load(str("./data/" + versionname + "/" + mapname + "/" + route.id + ".npy"))
                                 routeHeatMap = routeHeatMap + k
@@ -808,12 +814,21 @@ class StatsParser:
                             while not it.finished:
                                 if it[0] > 0:
                                     routeData.append({ "x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0]) })
-                                    layerData.append(
-                                        {"x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0])})
-                                    gameModeData.append(
-                                        {"x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0])})
-                                    mapData.append(
-                                        {"x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0])})
+                                it.iternext()
+                            it = np.nditer(layerHeatMap, flags=['multi_index'])
+                            while not it.finished:
+                                if it[0] > 0:
+                                    layerData.append({ "x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0]) })
+                                it.iternext()
+                            it = np.nditer(gameModeHeatMap, flags=['multi_index'])
+                            while not it.finished:
+                                if it[0] > 0:
+                                    gameModeData.append({ "x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0]) })
+                                it.iternext()
+                            it = np.nditer(mapHeatMap, flags=['multi_index'])
+                            while not it.finished:
+                                if it[0] > 0:
+                                    mapData.append({ "x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0]) })
                                 it.iternext()
                             with safe_open_w("./data/" + versionname + "/" + mapname + "/" + route.id + ".json") as f:
                                 f.write(json.dumps(routeData))
