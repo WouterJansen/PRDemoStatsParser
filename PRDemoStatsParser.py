@@ -576,7 +576,7 @@ class StatsParser:
                                     del self.versions[versionname][mapname].gameModes[gameModeIndex].layers[
                                         layerIndex].routes[routeIndex].roundsPlayed[demoIndex].heatMap
                     f.write(map.toJSON())
-        print "Calculation & export of statistics."
+        print "Calculation & export of statistics complete."
 
 
     # Map the parsedDemo to the correct structure in the statistics based on Map,GameMode,Layer,Route
@@ -768,17 +768,19 @@ class StatsParser:
                                 toDownloadServerNames.append(server.name)
                                 demos.append(os.path.basename(demoUrl))
                     newServerList.servers.append(Server(server.name, links, demos))
-                print "Downloading PRDemos from servers(" + ','.join(serverListNames) + ")..."
-                for demoIndex, demoUrl in enumerate(toDownload, start=0):
-                    update_progress(float(demoIndex) / len(toDownload),
-                                    "(" + str(demoIndex) + "/" + str(len(toDownload)) + ") " + toDownloadServerNames[
-                                        demoIndex] + "/" + os.path.basename(demoUrl))
-                    urllib.urlretrieve(demoUrl, "./demos/" + os.path.basename(demoUrl))
-                update_progress(1,"")
-                sys.stdout.flush()
+                if len(toDownload) != 0:
+                    print "Downloading PRDemos from servers(" + ','.join(serverListNames) + ")..."
+                    for demoIndex, demoUrl in enumerate(toDownload, start=0):
+                        update_progress(float(demoIndex) / len(toDownload),
+                                        "(" + str(demoIndex) + "/" + str(len(toDownload)) + ") " + toDownloadServerNames[
+                                            demoIndex] + "/" + os.path.basename(demoUrl))
+                        urllib.urlretrieve(demoUrl, "./demos/" + os.path.basename(demoUrl))
+                        update_progress(float(demoIndex) / len(toDownload),"")
+                    print "\nAll PRDemos from servers downloaded."
+                else:
+                    print "No new PRDemos found to download."
             with safe_open_w("./input/servers.json") as f:
                 f.write(newServerList.toJSON())
-            print "All PRDemos from servers downloaded."
         except:
             print "No /input/servers.json file found. Can't download demos automatically."
 
@@ -786,10 +788,18 @@ class StatsParser:
     #existing numpy matrixes (.npy) files found in the data folder for each route.
     def generateHeatMaps(self):
         print "Generating heatmaps..."
+        mapcount = 0
         for versionname,version in self.versions.iteritems():
             for mapname, map in version.iteritems():
+                mapcount += 1
+        counter = 1
+        for versionname,version in self.versions.iteritems():
+            for mapname, map in version.iteritems():
+                update_progress(float(counter) / mapcount,
+                                "(" + str(counter) + "/" + str(mapcount) + ") " + versionname + "/" + mapname)
                 mapData = []
                 mapHeatMap = np.zeros(shape=(256, 256))
+
                 for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
                     gameModeData = []
                     gameModeHeatMap = np.zeros(shape=(256, 256))
@@ -839,6 +849,9 @@ class StatsParser:
                         f.write(json.dumps(gameModeData))
                 with safe_open_w("./data/" + versionname + "/" + mapname + "/" + map.name + ".json") as f:
                     f.write(json.dumps(mapData))
-        print "Heatmaps generated."
+                update_progress(float(counter) / mapcount, "")
+                counter += 1
+
+        print "\nAll heatmaps(" + str(mapcount) +") generated."
 
 StatsParser()
