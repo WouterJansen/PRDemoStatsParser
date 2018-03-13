@@ -776,7 +776,7 @@ class StatsParser:
                                             demoIndex] + "/" + os.path.basename(demoUrl))
                         urllib.urlretrieve(demoUrl, "./demos/" + os.path.basename(demoUrl))
                         update_progress(float(demoIndex) / len(toDownload),"")
-                    print "\nAll PRDemos from servers downloaded."
+                    print "\nAll PRDemos from servers("+ str(len(toDownload)) + ") downloaded."
                 else:
                     print "No new PRDemos found to download."
             with safe_open_w("./input/servers.json") as f:
