@@ -6,7 +6,23 @@ Data can then be used with the webservice (https://github.com/WouterJansen/prbf2
 ## Requirements
 * Python 2.7.
 * Needs python packages **numpy**, **requests** and **beautifulsoup4**.
-* A ```servers.json``` next to the script with information on which servers and their corresponding URLs to look for RPDemo download links. Format:
+
+## Optional
+* Supports a folder ```input``` with all minimaps as jpg's of size 512x512 with their name as the mapname (to display heatmaps with). 
+* A ```maps.json``` in the ```input``` folder with information on the display name and the scale of the map(1,2,4 or 8). Without the scale defined there will be no heatmap data generated. Format:
+```javascript
+{
+  "albasrah_2": {
+    "displayName": "Al Basrah",
+    "scale": 2
+  },
+  "iron_thunder": {
+    "displayName": "Operation Thunder - BETA",
+    "scale": 4
+  }
+}
+```
+* A ```servers.json``` in the ```input``` folder with information on which servers and their corresponding URLs to look for RPDemo download links. Format:
 ```javascript
 {
     "servers": [
@@ -21,20 +37,6 @@ Data can then be used with the webservice (https://github.com/WouterJansen/prbf2
             "name": "servername2"
         }
     ]
-}
-```
-## Optional
-* Supports a folder ```input``` with all minimaps as jpg's of size 512x512 with their name as the mapname. And a ```maps.json``` next to the images with information on the display name and the scale of the map(1,2,4 or 8):
-```javascript
-{
-  "albasrah_2": {
-    "displayName": "Al Basrah",
-    "scale": 2
-  },
-  "iron_thunder": {
-    "displayName": "Operation Thunder - BETA",
-    "scale": 4
-  }
 }
 ```
 ## Important
