@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup
 import requests
 import urllib
 import numpy as np
+
 ###############################
 #           HELPERS           #
 ###############################
@@ -266,9 +267,10 @@ class demoParser:
             buffer = zlib.decompress(compressedBuffer)
         except:
             buffer = compressedBuffer
-        ####
+
         self.stream = cStringIO.StringIO(buffer)
         self.length = len(buffer)
+
         self.playerCount = 0
         self.timePlayed = 0
         self.flags = []
@@ -309,13 +311,14 @@ class demoParser:
                                     self.ticket1, self.ticket2, self.flags,self.heatMap.astype(int))
             self.parsedDemo.completed = True
         except Exception, e:
-            print e
             pass
 
     def getParsedDemo(self):
         self.mapName
         return self.parsedDemo
 
+    #Find the map scale found in /input/maps.json. Used for correctly aggragate positions of players
+    #to heatmap data.
     def findScale(self):
         try:
             with open("./input/maps.json", 'r') as f:
@@ -327,6 +330,7 @@ class demoParser:
             self.heatMap = None
             pass
 
+    #Find the next message and analyze it.
     def runMessage(self):
         # Check if end of file
         tmp = self.stream.read(2)
@@ -339,6 +343,7 @@ class demoParser:
             messageType = struct.unpack("B", self.stream.read(1))[0]
         except Exception, e:
             return 0x99
+
         if messageType == 0x00:  # server details
             values = unpack(self.stream, "IfssBHHssBssIHH")
             if values == -1: print "wot1"
@@ -387,12 +392,14 @@ class demoParser:
                 values = unpack(self.stream, "B")
                 if values == -1: print "wot4"
                 self.timePlayed = self.timePlayed + values * 0.04
-                for playerID, player in self.playerDict.iteritems():
-                    if player.isalive:
-                        if player.pos[0] < 256 * self.scale * 2 and player.pos[0] > -256 * self.scale * 2 and player.pos[2] < 256 * self.scale * 2 and player.pos[2] > -256 * self.scale * 2:
-                            x = int(round(player.pos[0] / (self.scale * 4) + 128))
-                            y = int(round(player.pos[2] / (self.scale * -4) + 128))
-                            self.heatMap[x - 1, y - 1] += 1
+                #go over all current player positions, aggragate the data based on the scale of the map and add it to the matrix
+                if self.scale != 0:
+                    for playerID, player in self.playerDict.iteritems():
+                        if player.isalive:
+                            if player.pos[0] < 256 * self.scale * 2 and player.pos[0] > -256 * self.scale * 2 and player.pos[2] < 256 * self.scale * 2 and player.pos[2] > -256 * self.scale * 2:
+                                x = int(round(player.pos[0] / (self.scale * 4) + 128))
+                                y = int(round(player.pos[2] / (self.scale * -4) + 128))
+                                self.heatMap[x - 1, y - 1] += 1
 
         elif messageType == 0x10 and self.scale != 0:  # update player
             while self.stream.tell() - startPos != messageLength:
@@ -402,8 +409,6 @@ class demoParser:
                     field, bit, fmt = tuple
                     if flags & bit:
                         p[field] = unpack(self.stream, fmt)
-
-
 
         elif messageType == 0x11:  # add player
             while self.stream.tell() - startPos != messageLength:
@@ -460,7 +465,6 @@ class StatsParser:
         self.generateHeatMaps()
         self.statsCalc()
         self.createMapList()
-
 
     # Calculate statistics such as times played and average tickets based on data
     def statsCalc(self):
@@ -632,11 +636,11 @@ class StatsParser:
 
     # Parse all PRdemo files in the demos folder. It also removes the files after parsing to avoid duplicate entries
     def dataAggragation(self):
-        print "Parsing new PRDemos..."
         filecounter = 0
         for filepath in walkdir("./demos"):
                 filecounter += 1
         if filecounter != 0:
+            print "Parsing new PRDemos..."
             for index, filepath in enumerate(walkdir("./demos"), start=0):
                 head, tail = os.path.split(filepath)
                 update_progress(float(index+1)/filecounter,"(" + str(index+1) + "/" + str(filecounter) + ") " + tail)
@@ -651,7 +655,7 @@ class StatsParser:
             #     os.remove(os.path.join("./demos", f))
             print "\nParsing of new PRDemos(" + str(filecounter) +") complete."
         else:
-            print "No PRDemos found."
+            print "No PRDemos in /demos folder found."
 
 
     # Create maplist.json with basic map statistics for map list overview
@@ -740,6 +744,8 @@ class StatsParser:
     #to the 'demos' list in the json to avoid duplicates.
     def downloadDemos(self):
         newServerList = ServerList()
+        if not os.path.exists("./demos"):
+            os.makedirs("./demos")
         try:
             with open('./input/servers.json', 'r') as f:
                 serverData = f.read()
@@ -775,6 +781,7 @@ class StatsParser:
             print "All PRDemos from servers downloaded."
         except:
             print "No /input/servers.json file found. Can't download demos automatically."
+
     #Generate heatmap data based on player locations. Includes importing of existing data through loading in
     #existing numpy matrixes (.npy) files found in the data folder for each route.
     def generateHeatMaps(self):
