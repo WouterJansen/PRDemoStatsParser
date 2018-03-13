@@ -5,7 +5,7 @@ Data can then be used with the webservice (https://github.com/WouterJansen/prbf2
 
 ## Requirements
 * Python 2.7.
-* Needs python packages **requests** and **beautifulsoup4**.
+* Needs python packages **numpy**, **requests** and **beautifulsoup4**.
 * A ```servers.json``` next to the script with information on which servers and their corresponding URLs to look for RPDemo download links. Format:
 ```javascript
 {

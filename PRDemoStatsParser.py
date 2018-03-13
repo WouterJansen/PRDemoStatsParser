@@ -13,7 +13,6 @@ from bs4 import BeautifulSoup
 import requests
 import urllib
 import numpy as np
-import matplotlib.pyplot as plt
 ###############################
 #           HELPERS           #
 ###############################
@@ -97,7 +96,6 @@ def update_progress(progress,message):
         status = "Halt...\r\n"
     if progress >= 1:
         progress = 1
-        status = "\r\n"
     block = int(round(barLength*progress))
     text = "\r[{0}] {1}% {2}".format( "#"*block + "-"*(barLength-block), round(progress*100,2), status)
     sys.stdout.write(text)
@@ -293,7 +291,7 @@ class demoParser:
             ('rot', 16384, 'h'),
             ('kit', 32768, 's'),
         ]
-        self.heatMap = np.zeros(shape=(512,512))
+        self.heatMap = np.zeros(shape=(256,256))
 
         timeoutindex = 0
         # parse the first few until serverDetails one to get map info
@@ -391,9 +389,9 @@ class demoParser:
                 self.timePlayed = self.timePlayed + values * 0.04
                 for playerID, player in self.playerDict.iteritems():
                     if player.isalive:
-                        if player.pos[0] < 512 * self.scale and player.pos[0] > -512 * self.scale and player.pos[2] < 512 * self.scale and player.pos[2] > -512 * self.scale:
-                            x = int(round(player.pos[0] / (self.scale * 2) + 256))
-                            y = int(round(player.pos[2] / (self.scale * -2) + 256))
+                        if player.pos[0] < 256 * self.scale * 2 and player.pos[0] > -256 * self.scale * 2 and player.pos[2] < 256 * self.scale * 2 and player.pos[2] > -256 * self.scale * 2:
+                            x = int(round(player.pos[0] / (self.scale * 4) + 128))
+                            y = int(round(player.pos[2] / (self.scale * -4) + 128))
                             self.heatMap[x - 1, y - 1] += 1
 
         elif messageType == 0x10 and self.scale != 0:  # update player
@@ -457,17 +455,16 @@ class StatsParser:
 
     def __init__(self):
         #self.downloadDemos()
-        #self.importStats()
+        self.importStats()
         self.dataAggragation()
         self.generateHeatMaps()
         self.statsCalc()
-        self.exportStats()
         self.createMapList()
 
 
     # Calculate statistics such as times played and average tickets based on data
     def statsCalc(self):
-        print "Calculating Statistics..."
+        print "Calculating & exporting statistics..."
         for versionname,version in self.versions.iteritems():
             for mapname, map in version.iteritems():
                 mapTotalTickets1 = 0
@@ -564,7 +561,19 @@ class StatsParser:
                                 self.versions[versionname][mapname].averageTicketsTeam1 = mapTotalTickets1 / self.versions[versionname][mapname].timesPlayed
                                 self.versions[versionname][mapname].averageTicketsTeam2 = mapTotalTickets2 / self.versions[versionname][mapname].timesPlayed
                                 self.versions[versionname][mapname].averageDuration = mapTotalDuration / self.versions[versionname][mapname].timesPlayed
-        print "Statistics Calculated."
+    # Export the statistics to the /maps/mapname/statistics.json files
+        for versionname, version in self.versions.iteritems():
+            for mapname, map in version.iteritems():
+                with safe_open_w("./data/" + versionname + "/" + mapname + "/statistics.json") as f:
+                    for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
+                        for layerIndex, layer in enumerate(gameMode.layers, start=0):
+                            for routeIndex, route in enumerate(layer.routes, start=0):
+                                for demoIndex, demo in enumerate(route.roundsPlayed, start=0):
+                                    del self.versions[versionname][mapname].gameModes[gameModeIndex].layers[
+                                        layerIndex].routes[routeIndex].roundsPlayed[demoIndex].heatMap
+                    f.write(map.toJSON())
+        print "Calculation & export of statistics."
+
 
     # Map the parsedDemo to the correct structure in the statistics based on Map,GameMode,Layer,Route
     def demoToData(self, parsedDemo):
@@ -635,27 +644,15 @@ class StatsParser:
                 if os.stat(filepath).st_size > 10000:
                     parsedDemo = demoParser(filepath).getParsedDemo()
                     self.demoToData(parsedDemo)
+                update_progress(float(index + 1) / filecounter,"")
+
             # filelist = [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]
             # for f in filelist:
             #     os.remove(os.path.join("./demos", f))
-            print "Parsing of new PRDemos(" + str(filecounter) +") complete."
+            print "\nParsing of new PRDemos(" + str(filecounter) +") complete."
         else:
             print "No PRDemos found."
 
-    # Export the statistics to the /maps/mapname/data.json files
-    def exportStats(self):
-        print "Exporting statistics..."
-        for versionname,version in self.versions.iteritems():
-            for mapname, map in version.iteritems():
-                with safe_open_w("./data/" + versionname + "/" + mapname + "/data.json") as f:
-                    for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
-                        for layerIndex, layer in enumerate(gameMode.layers, start=0):
-                            for routeIndex, route in enumerate(layer.routes, start=0):
-                                for demoIndex, demo in enumerate(route.roundsPlayed, start=0):
-                                    del self.versions[versionname][mapname].gameModes[gameModeIndex].layers[
-                                        layerIndex].routes[routeIndex].roundsPlayed[demoIndex].heatMap
-                    f.write(map.toJSON())
-        print "Export of statistics complete."
 
     # Create maplist.json with basic map statistics for map list overview
     def createMapList(self):
@@ -706,13 +703,17 @@ class StatsParser:
     # Import existing data.json files of each map and gets the parsedDemos to be able to re-calculate the statistics
     def importStats(self):
         print "Importing existing statistics..."
-        filecounter = -1
+        filecounter = 0
         for filepath in walkdir("./data"):
-            filecounter += 1
-        if filecounter > 1:
+            if fnmatch(filepath, "*statistics.json") is True:
+                filecounter += 1
+        if filecounter >= 1:
             for index, filepath in enumerate(walkdir("./data"), start=0):
-                if fnmatch(filepath, "*.json") and fnmatch(filepath, "*maplist.json") is False:
+                if fnmatch(filepath, "*statistics.json") is True:
                     head, tail = os.path.split(filepath)
+                    update_progress(float(index) / filecounter,
+                                    os.path.split(os.path.split(head)[0])[1] + "/" + os.path.basename(
+                                        os.path.normpath(head)))
                     with open(filepath, 'r') as f:
                         mapData = f.read()
                         mapObject = json2obj(mapData)
@@ -729,8 +730,9 @@ class StatsParser:
                                                              parsedDemo.ticketsTeam1, parsedDemo.ticketsTeam2, flags)
                                         newDemo.completed = True
                                         self.demoToData(newDemo)
-                    update_progress(float(index)/filecounter, "(" + str(index) + "/" + str(filecounter) + ") " + os.path.split(os.path.split(head)[0])[1] + "/" + os.path.basename(os.path.normpath(head)))
-            print "Import of existing statistics(" + str(filecounter) + ") complete."
+                    update_progress(float(index) / filecounter,"")
+
+            print "\nImport of existing statistics(" + str(filecounter) + ") complete."
         else:
             print "No existing statistics found."
 
@@ -773,28 +775,43 @@ class StatsParser:
         print "Generating heatmaps..."
         for versionname,version in self.versions.iteritems():
             for mapname, map in version.iteritems():
-                mapHeatMap = np.zeros(shape=(512, 512))
+                mapData = []
                 for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
-                    gameModeHeatMap = np.zeros(shape=(512, 512))
+                    gameModeData = []
                     for layerIndex, layer in enumerate(gameMode.layers, start=0):
-                        layerHeatMap = np.zeros(shape=(512, 512))
+                        layerData = []
                         for routeIndex, route in enumerate(layer.routes, start=0):
-                            routeHeatMap = np.zeros(shape=(512, 512))
+                            routeHeatMap = np.zeros(shape=(256, 256))
+                            routeData = []
                             for parsedDemo in route.roundsPlayed:
-                                routeHeatMap = routeHeatMap + parsedDemo.heatMap
-                                layerHeatMap = layerHeatMap + parsedDemo.heatMap
-                                gameModeHeatMap = gameModeHeatMap + parsedDemo.heatMap
-                                mapHeatMap = mapHeatMap + parsedDemo.heatMap
-                            with safe_open_w("./data/" + versionname + "/" + mapname + "/" + route.id + ".heatMap") as f:
-                                np.save(f, routeHeatMap)
-                            routeImage = plt.imshow(routeHeatMap, cmap='afmhot', interpolation='bilinear')
-                            routeImage.figure.savefig("./data/" + versionname + "/" + mapname + "/HeatMap_" + gameMode.name.replace(" ","_") + "_" + layer.name.replace(" ","_") + "_" + route.id.replace(" ","_") + ".png")
-                        layerImage = plt.imshow(layerHeatMap, cmap='afmhot', interpolation='bilinear')
-                        layerImage.figure.savefig("./data/" + versionname + "/" + mapname + "/HeatMap_" + gameMode.name.replace(" ","_") + "_" + layer.name.replace(" ","_") + ".png")
-                    gameModeImage = plt.imshow(gameModeHeatMap, cmap='afmhot', interpolation='bilinear')
-                    gameModeImage.figure.savefig("./data/" + versionname + "/" + mapname + "/HeatMap_" + gameMode.name.replace(" ","_") + ".png")
-                mapImage = plt.imshow(mapHeatMap, cmap='afmhot', interpolation='bilinear')
-                mapImage.figure.savefig("./data/" + versionname + "/" + mapname + "/HeatMap_map.png")
-        print "Generated all heatmaps."
+                                if type(parsedDemo.heatMap) != type(None):
+                                    routeHeatMap = routeHeatMap + parsedDemo.heatMap
+                            try:
+                                k = np.load(str("./data/" + versionname + "/" + mapname + "/" + route.id + ".npy"))
+                                routeHeatMap = routeHeatMap + k
+
+                            except Exception, e:
+                                print e
+                            it = np.nditer(routeHeatMap, flags=['multi_index'])
+                            while not it.finished:
+                                if it[0] > 0:
+                                    routeData.append({ "x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0]) })
+                                    layerData.append(
+                                        {"x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0])})
+                                    gameModeData.append(
+                                        {"x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0])})
+                                    mapData.append(
+                                        {"x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0])})
+                                it.iternext()
+                            with safe_open_w("./data/" + versionname + "/" + mapname + "/" + route.id + ".json") as f:
+                                f.write(json.dumps(routeData))
+                            np.save("./data/" + versionname + "/" + mapname + "/" + route.id,routeHeatMap)
+                        with safe_open_w("./data/" + versionname + "/" + mapname + "/" + layer.name + ".json") as f:
+                            f.write(json.dumps(layerData))
+                    with safe_open_w("./data/" + versionname + "/" + mapname + "/" + gameMode.name + ".json") as f:
+                        f.write(json.dumps(gameModeData))
+                with safe_open_w("./data/" + versionname + "/" + mapname + "/" + map.name + ".json") as f:
+                    f.write(json.dumps(mapData))
+        print "Heatmaps generated."
 
 StatsParser()
