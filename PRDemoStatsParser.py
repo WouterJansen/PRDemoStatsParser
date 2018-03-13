@@ -650,9 +650,9 @@ class StatsParser:
                     self.demoToData(parsedDemo)
                 update_progress(float(index + 1) / filecounter,"")
 
-            # filelist = [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]
-            # for f in filelist:
-            #     os.remove(os.path.join("./demos", f))
+            filelist = [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]
+            for f in filelist:
+                os.remove(os.path.join("./demos", f))
             print "\nParsing of new PRDemos(" + str(filecounter) +") complete."
         else:
             print "No PRDemos in /demos folder found."
