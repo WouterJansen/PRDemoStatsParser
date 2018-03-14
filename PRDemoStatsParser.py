@@ -293,7 +293,7 @@ class demoParser:
             ('rot', 16384, 'h'),
             ('kit', 32768, 's'),
         ]
-        self.heatMap = np.zeros(shape=(256,256))
+        self.heatMap = np.zeros(shape=(512,512))
 
         timeoutindex = 0
         # parse the first few until serverDetails one to get map info
@@ -399,7 +399,7 @@ class demoParser:
                             if player.pos[0] < 256 * self.scale * 2 and player.pos[0] > -256 * self.scale * 2 and player.pos[2] < 256 * self.scale * 2 and player.pos[2] > -256 * self.scale * 2:
                                 x = int(round(player.pos[0] / (self.scale * 4) + 128))
                                 y = int(round(player.pos[2] / (self.scale * -4) + 128))
-                                self.heatMap[x - 1, y - 1] += 1
+                                self.heatMap[(x - 1)*2, (y - 1)*2] += 1
 
         elif messageType == 0x10 and self.scale != 0:  # update player
             while self.stream.tell() - startPos != messageLength:
@@ -798,16 +798,15 @@ class StatsParser:
                 update_progress(float(counter) / mapcount,
                                 "(" + str(counter) + "/" + str(mapcount) + ") " + versionname + "/" + mapname)
                 mapData = []
-                mapHeatMap = np.zeros(shape=(256, 256))
-
+                mapHeatMap = np.zeros(shape=(512,512))
                 for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
                     gameModeData = []
-                    gameModeHeatMap = np.zeros(shape=(256, 256))
+                    gameModeHeatMap = np.zeros(shape=(512,512))
                     for layerIndex, layer in enumerate(gameMode.layers, start=0):
                         layerData = []
-                        layerHeatMap = np.zeros(shape=(256, 256))
+                        layerHeatMap = np.zeros(shape=(512,512))
                         for routeIndex, route in enumerate(layer.routes, start=0):
-                            routeHeatMap = np.zeros(shape=(256, 256))
+                            routeHeatMap = np.zeros(shape=(512,512))
                             routeData = []
                             for parsedDemo in route.roundsPlayed:
                                 if type(parsedDemo.heatMap) != type(None):
