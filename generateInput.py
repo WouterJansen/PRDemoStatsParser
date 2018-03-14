@@ -58,20 +58,15 @@ def findScale(name):
     try:
         with open(LEVELSPATH + "/" + name + "/Heightdata.con") as f:
             lines = f.readlines()
-            lineFound = False
             foundLine = ""
             for line in lines:
                 if "heightmap.setScale" in line.replace("\n", ""):
-                    lineFound = True
                     foundLine = line.replace("\n", "")
                     break
             splitLine = foundLine.split(" ")[1].split("/")
             scale = splitLine[0]
-            lineFound = False
-            foundLine = ""
             for line in lines:
                 if "heightmap.setSize" in line.replace("\n", ""):
-                    lineFound = True
                     foundLine = line.replace("\n", "")
                     break
             size = foundLine.split(" ")[2]
