@@ -41,7 +41,7 @@ Will create a _data_ folder with all generated content. This can then be used wi
 ```
 ## How To
 * Place PRDemo files in a _demos_ folder or create a ```servers.json``` in the _input_ folder to automatically download them(see Optional).
-* run ```PRDemoStatsParser.py```.
+* run ```PRDemoParser.py```.
 
 ## Notes 
 * After parsing the _demos_ folder will be automatically cleared to save space.
