@@ -15,10 +15,6 @@ import urllib
 import numpy as np
 import time
 from shutil import copyfile
-###############################
-#     GLOBAL VARIABLES        #
-###############################
-
 
 ###############################
 #           HELPERS           #
@@ -305,7 +301,6 @@ class demoParser:
             ('kit', 32768, 's'),
         ]
         self.heatMap = np.zeros(shape=(512,512))
-
         timeoutindex = 0
         # parse the first few until serverDetails one to get map info
         while self.runMessage() != 0x00:
@@ -315,7 +310,7 @@ class demoParser:
             pass
         self.runToEnd()
 
-        # create ParsedDemo object and set it to complete if it was able to get alld data
+        # create ParsedDemo object and set it to complete if it was able to get all data
         try:
             self.parsedDemo.setData(self.version, self.date, self.mapName, self.mapGamemode, self.mapLayer, self.timePlayed / 60,
                                     self.playerCount,
@@ -325,7 +320,6 @@ class demoParser:
             pass
 
     def getParsedDemo(self):
-        self.mapName
         return self.parsedDemo
 
     #Find the map scale found in /input/maps.json. Used for correctly aggragate positions of players
@@ -357,7 +351,8 @@ class demoParser:
 
         if messageType == 0x00:  # server details
             values = unpack(self.stream, "IfssBHHssBssIHH")
-            if values == -1: print "wot1"
+            if values == -1:
+                return 0x99
             version = values[3].split(']')[0].split(' ')
             self.version = version[1]
             self.mapName = values[7]
@@ -383,7 +378,8 @@ class demoParser:
         elif messageType == 0x52:  # tickets team 1
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "H")
-                if values == -1: print "wot2"
+                if values == -1:
+                    return 0x99
                 if values < 9000:
                     self.ticket1 = values
                 else:
@@ -392,7 +388,8 @@ class demoParser:
         elif messageType == 0x53:  # tickets team 2
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "H")
-                if values == -1: print "wot3"
+                if values == -1:
+                    return 0x99
                 if values < 9000:
                     self.ticket2 = values
                 else:
@@ -401,37 +398,34 @@ class demoParser:
         elif messageType == 0xf1:  # tick
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "B")
-                if values == -1: print "wot4"
+                if values == -1:
+                    return 0x99
                 self.timePlayed = self.timePlayed + values * 0.04
-                #go over all current player positions, aggragate the data based on the scale of the map and add it to the matrix
-                # if self.scale != 0:
-                #     for playerID, player in self.playerDict.iteritems():
-                #         if player.isalive:
-                #             if player.pos[0] < 256 * self.scale * 2 and player.pos[0] > -256 * self.scale * 2 and player.pos[2] < 256 * self.scale * 2 and player.pos[2] > -256 * self.scale * 2:
-                #                 x = int(round(player.pos[0] / (self.scale * 4) + 128))
-                #                 y = int(round(player.pos[2] / (self.scale * -4) + 128))
-                #                 self.heatMap[(x - 1)*2, (y - 1)*2] += 1
 
         elif messageType == 0x10 and self.scale != 0:  # update player
             while self.stream.tell() - startPos != messageLength:
                 flags = unpack(self.stream, "H")
-                p = self.playerDict[unpack(self.stream, "B")]
-                for tuple in self.PLAYERFLAGS:
-                    field, bit, fmt = tuple
-                    if flags & bit:
-                        p[field] = unpack(self.stream, fmt)
-                        if field == "pos":
-                            if p.isalive:
-                                if p.pos[0] < 256 * self.scale * 2 and p.pos[0] > -256 * self.scale * 2 and \
-                                        p.pos[2] < 256 * self.scale * 2 and p.pos[2] > -256 * self.scale * 2:
-                                    x = int(round(p.pos[0] / (self.scale * 4) + 128))
-                                    y = int(round(p.pos[2] / (self.scale * -4) + 128))
-                                    self.heatMap[(x - 1) * 2, (y - 1) * 2] += 1
+                try:
+                    p = self.playerDict[unpack(self.stream, "B")]
+                    for tuple in self.PLAYERFLAGS:
+                        field, bit, fmt = tuple
+                        if flags & bit:
+                            p[field] = unpack(self.stream, fmt)
+                            if field == "pos":
+                                if p.isalive:
+                                    if p.pos[0] < 256 * self.scale * 2 and p.pos[0] > -256 * self.scale * 2 and \
+                                            p.pos[2] < 256 * self.scale * 2 and p.pos[2] > -256 * self.scale * 2:
+                                        x = int(round(p.pos[0] / (self.scale * 4) + 128))
+                                        y = int(round(p.pos[2] / (self.scale * -4) + 128))
+                                        self.heatMap[(x - 1) * 2, (y - 1) * 2] += 1
+                except:
+                    return 0x99
 
         elif messageType == 0x11:  # add player
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "Bsss")
-                if values == -1: print "wot6"
+                if values == -1:
+                    return 0x99
                 p = Player()
                 p.id = values[0]
                 p.name = values[1]
@@ -443,14 +437,16 @@ class demoParser:
         elif messageType == 0x12:  # remove player
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "B")
-                if values == -1: print "wot7"
+                if values == -1:
+                    return 0x99
                 del self.playerDict[values]
                 self.playerCount -= 1
 
         elif messageType == 0x41:  # flaglist
             while self.stream.tell() - startPos != messageLength:
                 values = unpack(self.stream, "HBHHHH")
-                if values == -1: print "wot8"
+                if values == -1:
+                    return 0x99
                 self.flags.append(Flag(values[0], values[2], values[3], values[4], values[5]))
 
         else:
@@ -685,18 +681,14 @@ class StatsParser:
                 if os.stat(filepath).st_size > 10000:
                     filesToParse.append(filepath)
             pool = multiprocessing.Pool(multiprocessing.cpu_count()-1)
-            resultingParsedDemos = pool.map_async(parseNewDemo, filesToParse)
+            resultingParsedDemos = pool.map_async(parseNewDemo, filesToParse,chunksize=1)
+            pool.close()
             while (True):
-                remaining = resultingParsedDemos._number_left*resultingParsedDemos._chunksize
-                if remaining > demosToParseCount:
-                    update_progress(0,
-                                    "(" + str(0) + "/" + str(demosToParseCount) + ")")
-                else:
-                    update_progress(float(demosToParseCount - remaining) / demosToParseCount, "(" + str(demosToParseCount - remaining) + "/" + str(demosToParseCount) +") (approximation)")
-                time.sleep(1)
+                update_progress(float(len(filesToParse) - resultingParsedDemos._number_left) / len(filesToParse), "(" + str(len(filesToParse) - resultingParsedDemos._number_left) + "/" + str(len(filesToParse)) +")")
+                time.sleep(0.5)
                 if (resultingParsedDemos.ready()): break
-            update_progress(1,"")
             resultingParsedDemos.wait()
+            update_progress(1, "")
             resultingParsedDemos = resultingParsedDemos.get()
             for parsedDemo in resultingParsedDemos:
                 self.demoToData(parsedDemo)
@@ -832,6 +824,7 @@ class StatsParser:
                                             demoIndex] + "/" + os.path.basename(demoUrl))
                         urllib.urlretrieve(demoUrl, "./demos/" + os.path.basename(demoUrl))
                         update_progress(float(demoIndex) / len(toDownload),"")
+                    update_progress(1, "")
                     print "\nAll PRDemos from servers("+ str(len(toDownload)) + ") downloaded."
                 else:
                     print "There are no new PRDemos to download."
