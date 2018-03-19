@@ -109,6 +109,20 @@ def parseNewDemo(filepath):
     parsedDemo = demoParser(filepath).getParsedDemo()
     return parsedDemo
 
+#Find the map scale found in /input/maps.json. Used for correctly aggragate positions of players
+#to heatmap data.
+def findScale(mapName):
+    try:
+        with open("./input/maps.json", 'r') as f:
+            mapInfoData = f.read()
+            mapInfo = json2obj(mapInfoData)
+            if hasattr(mapInfo, mapName):
+                return getattr(mapInfo, mapName).scale
+            else:
+                return 0
+    except:
+        return 0
+
 
 ###############################
 #           CLASSES           #
@@ -322,19 +336,6 @@ class demoParser:
     def getParsedDemo(self):
         return self.parsedDemo
 
-    #Find the map scale found in /input/maps.json. Used for correctly aggragate positions of players
-    #to heatmap data.
-    def findScale(self):
-        try:
-            with open("./input/maps.json", 'r') as f:
-                mapInfoData = f.read()
-                mapInfo = json2obj(mapInfoData)
-                if hasattr(mapInfo, self.mapName):
-                    self.scale = getattr(mapInfo, self.mapName).scale
-        except:
-            self.heatMap = None
-            pass
-
     #Find the next message and analyze it.
     def runMessage(self):
         # Check if end of file
@@ -356,7 +357,7 @@ class demoParser:
             version = values[3].split(']')[0].split(' ')
             self.version = version[1]
             self.mapName = values[7]
-            self.findScale()
+            self.scale = findScale(self.mapName)
             gamemode = values[8]
             if gamemode == "gpm_cq":
                 self.mapGamemode = "Advance & Secure"
@@ -788,14 +789,14 @@ class StatsParser:
         else:
             print "Existing statistics not found."
 
-    #Download new demos from servers defined in /input/servers.json. Every demo that is downloaded is appended
+    #Download new demos from servers defined in /input/configconfig.json. Every demo that is downloaded is appended
     #to the 'demos' list in the json to avoid duplicates.
     def downloadDemos(self):
         newServerList = ServerList()
         if not os.path.exists("./demos"):
             os.makedirs("./demos")
         try:
-            with open('./input/servers.json', 'r') as f:
+            with open('./input/config.json', 'r') as f:
                 serverData = f.read()
                 serverList = json2obj(serverData)
                 toDownload = []
@@ -828,10 +829,10 @@ class StatsParser:
                     print "\nAll PRDemos from servers("+ str(len(toDownload)) + ") downloaded."
                 else:
                     print "There are no new PRDemos to download."
-            with safe_open_w("./input/servers.json") as f:
+            with safe_open_w("./input/config.json") as f:
                 f.write(newServerList.toJSON())
         except:
-            print "/input/servers.json file not found. Can't download demos automatically."
+            print "/input/config.json file not found. Can't download demos automatically."
 
     #Generate heatmap data based on player locations. Includes importing of existing data through loading in
     #existing numpy matrixes (.npy) files found in the data folder for each route.
@@ -859,8 +860,7 @@ class StatsParser:
                                 routeHeatMap = np.zeros(shape=(512,512))
                                 routeData = []
                                 for parsedDemo in route.roundsPlayed:
-                                    if type(parsedDemo.heatMap) != type(None):
-                                        routeHeatMap = routeHeatMap + parsedDemo.heatMap
+                                    routeHeatMap = routeHeatMap + parsedDemo.heatMap
                                 try:
                                     k = np.load(str("./data/" + versionname + "/" + mapname + "/" + route.id + ".npy"))
                                     routeHeatMap = routeHeatMap + k
@@ -906,8 +906,8 @@ class StatsParser:
         else:
             print "There is no data to generate heatmaps from."
 
-    def copyImages(self):
 
+    def copyImages(self):
         imagescount = 0
         for index, filepath in enumerate(walkdir("./input"), start=0):
             if fnmatch(filepath, "*.jpg"):
