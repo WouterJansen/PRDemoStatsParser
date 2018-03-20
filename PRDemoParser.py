@@ -865,6 +865,8 @@ class StatsParser:
                                     pass
                                 for parsedDemo in route.roundsPlayed:
                                     routeHeatMap = routeHeatMap + parsedDemo.heatMap
+                                if not os.path.exists("./data/" + versionname + "/" + mapname):
+                                    os.makedirs("./data/" + versionname + "/" + mapname)
                                 np.save(
                                     "./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id,
                                     routeHeatMap)

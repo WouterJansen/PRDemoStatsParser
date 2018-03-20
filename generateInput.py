@@ -36,7 +36,7 @@ def generateMinimaps():
                 img_noAlpha = img_resized.convert('RGB')
                 img_noAlpha.save("./input/" + map + ".jpg", 'JPEG',quality=100)
             except Exception,e :
-                print "  Couldn't make minimap of " + name + ":" + str(e)
+                print "  Couldn't make minimap of " + map + ":" + str(e)
     print "All minimaps generated."
 
 def findDisplayName(name):
@@ -120,6 +120,5 @@ def main():
             generateMinimaps()
     except Exception, e:
         print e
-        print "/input/config.json file not found. Can't find pr_repo path."
 
 main()
