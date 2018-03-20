@@ -582,9 +582,10 @@ class StatsParser:
                                     self.versions[versionname][mapname].averageTicketsTeam1 = mapTotalTickets1 / self.versions[versionname][mapname].timesPlayed
                                     self.versions[versionname][mapname].averageTicketsTeam2 = mapTotalTickets2 / self.versions[versionname][mapname].timesPlayed
                                     self.versions[versionname][mapname].averageDuration = mapTotalDuration / self.versions[versionname][mapname].timesPlayed
-        # Export the statistics to the /maps/mapname/statistics.json files
+
             for versionname, version in self.versions.iteritems():
                 for mapname, map in version.iteritems():
+                    # Export the statistics to the /maps/mapname/statistics.json files but first remove large heatmap data.
                     with safe_open_w("./data/" + versionname + "/" + mapname + "/statistics.json") as f:
                         for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
                             for layerIndex, layer in enumerate(gameMode.layers, start=0):
@@ -818,7 +819,7 @@ class StatsParser:
                                 demos.append(os.path.basename(demoUrl))
                     newServerList.servers.append(Server(server.name, links, demos))
                 if len(toDownload) != 0:
-                    print "Downloading PRDemos from servers(" + ','.join(serverListNames) + ")..."
+                    print "Downloading available PRDemos from servers(" + ','.join(serverListNames) + ")..."
                     for demoIndex, demoUrl in enumerate(toDownload, start=0):
                         update_progress(float(demoIndex) / len(toDownload),
                                         "(" + str(demoIndex) + "/" + str(len(toDownload)) + ") " + toDownloadServerNames[
@@ -826,7 +827,7 @@ class StatsParser:
                         urllib.urlretrieve(demoUrl, "./demos/" + os.path.basename(demoUrl))
                         update_progress(float(demoIndex) / len(toDownload),"")
                     update_progress(1, "")
-                    print "\nAll PRDemos from servers("+ str(len(toDownload)) + ") downloaded."
+                    print "\nAll available PRDemos from servers("+ str(len(toDownload)) + ") downloaded."
                 else:
                     print "There are no new PRDemos to download."
             with safe_open_w("./input/config.json") as f:
@@ -837,26 +838,24 @@ class StatsParser:
     #Generate heatmap data based on player locations. Includes importing of existing data through loading in
     #existing numpy matrixes (.npy) files found in the data folder for each route.
     def generateHeatMaps(self):
-        mapcount = 0
+        routeCount = 0
         for versionname,version in self.versions.iteritems():
             for mapname, map in version.iteritems():
-                mapcount += 1
+                for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
+                    for layerIndex, layer in enumerate(gameMode.layers, start=0):
+                        for routeIndex, route in enumerate(layer.routes, start=0):
+                            routeCount += 1
         counter = 1
-        if mapcount != 0:
+        if routeCount != 0:
             print "Generating heatmaps..."
             for versionname,version in self.versions.iteritems():
                 for mapname, map in version.iteritems():
-                    update_progress(float(counter) / mapcount,
-                                    "(" + str(counter) + "/" + str(mapcount) + ") " + versionname + "/" + mapname)
-                    mapData = []
-                    mapHeatMap = np.zeros(shape=(512,512))
                     for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
-                        gameModeData = []
-                        gameModeHeatMap = np.zeros(shape=(512,512))
                         for layerIndex, layer in enumerate(gameMode.layers, start=0):
-                            layerData = []
-                            layerHeatMap = np.zeros(shape=(512,512))
                             for routeIndex, route in enumerate(layer.routes, start=0):
+                                update_progress(float(counter) / routeCount,
+                                                "(" + str(counter) + "/" + str(
+                                                    routeCount) + ") " + versionname + "/" + mapname + "/" + gameMode.name + "/" + layer.name + "/" + route.id)
                                 routeHeatMap = np.zeros(shape=(512,512))
                                 routeData = []
                                 for parsedDemo in route.roundsPlayed:
@@ -871,38 +870,12 @@ class StatsParser:
                                     if it[0] > 0:
                                         routeData.append({ "x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0]) })
                                     it.iternext()
-                                with safe_open_w("./data/" + versionname + "/" + mapname + "/" + route.id + ".json") as f:
+                                with safe_open_w("./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id + ".json") as f:
                                     f.write(json.dumps(routeData))
-                                np.save("./data/" + versionname + "/" + mapname + "/" + route.id,routeHeatMap)
-                                layerHeatMap = layerHeatMap + routeHeatMap
-                            it = np.nditer(layerHeatMap, flags=['multi_index'])
-                            while not it.finished:
-                                if it[0] > 0:
-                                    layerData.append(
-                                        {"x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0])})
-                                it.iternext()
-                            with safe_open_w("./data/" + versionname + "/" + mapname + "/" + layer.name + ".json") as f:
-                                f.write(json.dumps(layerData))
-                            gameModeHeatMap = gameModeHeatMap + layerHeatMap
-                        it = np.nditer(gameModeHeatMap, flags=['multi_index'])
-                        while not it.finished:
-                            if it[0] > 0:
-                                gameModeData.append(
-                                    {"x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0])})
-                            it.iternext()
-                        with safe_open_w("./data/" + versionname + "/" + mapname + "/" + gameMode.name + ".json") as f:
-                            f.write(json.dumps(gameModeData))
-                        mapHeatMap = mapHeatMap + gameModeHeatMap
-                    it = np.nditer(mapHeatMap, flags=['multi_index'])
-                    while not it.finished:
-                        if it[0] > 0:
-                            mapData.append({"x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0])})
-                        it.iternext()
-                    with safe_open_w("./data/" + versionname + "/" + mapname + "/" + map.name + ".json") as f:
-                        f.write(json.dumps(mapData))
-                    update_progress(float(counter) / mapcount, "")
+                                np.save("./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id,routeHeatMap)                                
+                    update_progress(float(counter) / routeCount, "")
                     counter += 1
-            print "\nAll heatmaps(" + str(mapcount) +") generated."
+            print "\nAll heatmaps(" + str(routeCount) +") generated."
         else:
             print "There is no data to generate heatmaps from."
 
