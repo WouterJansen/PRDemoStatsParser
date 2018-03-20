@@ -858,17 +858,19 @@ class StatsParser:
                                                     routeCount) + ") " + versionname + "/" + mapname + "/" + gameMode.name + "/" + layer.name + "/" + route.id)
                                 routeHeatMap = np.zeros(shape=(512,512))
                                 routeData = []
-                                for parsedDemo in route.roundsPlayed:
-                                    routeHeatMap = routeHeatMap + parsedDemo.heatMap
                                 try:
                                     k = np.load(str("./data/" + versionname + "/" + mapname + "/" + route.id + ".npy"))
                                     routeHeatMap = routeHeatMap + k
                                 except Exception, e:
                                     pass
+                                for parsedDemo in route.roundsPlayed:
+                                    routeHeatMap = routeHeatMap + parsedDemo.heatMap
+                                if routeHeatMap.max() != 0:
+                                    routeHeatMap = routeHeatMap/routeHeatMap.max()
                                 it = np.nditer(routeHeatMap, flags=['multi_index'])
                                 while not it.finished:
                                     if it[0] > 0:
-                                        routeData.append({ "x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": int(it[0]) })
+                                        routeData.append({ "x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": float(it[0]) })
                                     it.iternext()
                                 with safe_open_w("./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id + ".json") as f:
                                     f.write(json.dumps(routeData))
