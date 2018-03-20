@@ -865,6 +865,9 @@ class StatsParser:
                                     pass
                                 for parsedDemo in route.roundsPlayed:
                                     routeHeatMap = routeHeatMap + parsedDemo.heatMap
+                                np.save(
+                                    "./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id,
+                                    routeHeatMap)
                                 if routeHeatMap.max() != 0:
                                     routeHeatMap = routeHeatMap/routeHeatMap.max()
                                 it = np.nditer(routeHeatMap, flags=['multi_index'])
@@ -874,7 +877,6 @@ class StatsParser:
                                     it.iternext()
                                 with safe_open_w("./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id + ".json") as f:
                                     f.write(json.dumps(routeData))
-                                np.save("./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id,routeHeatMap)                                
                     update_progress(float(counter) / routeCount, "")
                     counter += 1
             print "\nAll heatmaps(" + str(routeCount) +") generated."
