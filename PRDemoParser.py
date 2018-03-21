@@ -859,12 +859,13 @@ class StatsParser:
                                 routeHeatMap = np.zeros(shape=(512,512))
                                 routeData = []
                                 try:
-                                    k = np.load(str("./data/" + versionname + "/" + mapname + "/" + route.id + ".npy"))
+                                    k = np.load(str("./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id + ".npy"))
                                     routeHeatMap = routeHeatMap + k
                                 except Exception, e:
                                     pass
                                 for parsedDemo in route.roundsPlayed:
-                                    routeHeatMap = routeHeatMap + parsedDemo.heatMap
+                                    if type(parsedDemo.heatMap) is not type(None):
+                                        routeHeatMap = routeHeatMap + parsedDemo.heatMap
                                 if not os.path.exists("./data/" + versionname + "/" + mapname):
                                     os.makedirs("./data/" + versionname + "/" + mapname)
                                 np.save(
