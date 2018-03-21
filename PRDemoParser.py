@@ -474,13 +474,13 @@ class StatsParser:
     versions = {}
 
     def __init__(self):
-        self.copyImages()
         self.downloadDemos()
         self.importStats()
         self.dataAggragation()
         self.generateHeatMaps()
         self.statsCalc()
         self.createMapList()
+        self.copyData()
 
     # Calculate statistics such as times played and average tickets based on data
     def statsCalc(self):
@@ -710,11 +710,10 @@ class StatsParser:
         foundMapNames = False
         try:
             with open("./input/maps.json", 'r') as f:
-                mapNamesData = f.read()
-                mapNames = json2obj(mapNamesData)
+                mapNames = json2obj(f.read())
                 foundMapNames = True
         except:
-            pass
+            print "Couldn't find /input/maps.json to generate display names from."
         if len(self.versions) > 0:
             print "Creating maplist..."
             for versionname,version in self.versions.iteritems():
@@ -755,23 +754,21 @@ class StatsParser:
 
     # Import existing data.json files of each map and gets the parsedDemos to be able to re-calculate the statistics
     def importStats(self):
-
-        filecounter = 0
+        totalStatisticsCount = 0
         for filepath in walkdir("./data"):
             if fnmatch(filepath, "*statistics.json") is True:
-                filecounter += 1
-        if filecounter >= 1:
+                totalStatisticsCount += 1
+        if totalStatisticsCount >= 1:
             print "Importing existing statistics..."
             for index, filepath in enumerate(walkdir("./data"), start=0):
                 if fnmatch(filepath, "*statistics.json") is True:
                     head, tail = os.path.split(filepath)
-                    update_progress(float(index) / filecounter,
+                    update_progress(float(index) / totalStatisticsCount,
                                     os.path.split(os.path.split(head)[0])[1] + "/" + os.path.basename(
                                         os.path.normpath(head)))
                     with open(filepath, 'r') as f:
-                        mapData = f.read()
-                        mapObject = json2obj(mapData)
-                        for gamemode in mapObject.gameModes:
+                        importedMapStatistics = json2obj(f.read())
+                        for gamemode in importedMapStatistics.gameModes:
                             for layer in gamemode.layers:
                                 for route in layer.routes:
                                     for parsedDemo in route.roundsPlayed:
@@ -784,83 +781,82 @@ class StatsParser:
                                                              parsedDemo.ticketsTeam1, parsedDemo.ticketsTeam2, flags)
                                         newDemo.completed = True
                                         self.demoToData(newDemo)
-                    update_progress(float(index) / filecounter,"")
+                    update_progress(float(index) / totalStatisticsCount,"")
 
-            print "\nImport of existing statistics(" + str(filecounter) + ") complete."
+            print "\nImport of existing statistics(" + str(totalStatisticsCount) + ") complete."
         else:
             print "Existing statistics not found."
 
     #Download new demos from servers defined in /input/configconfig.json. Every demo that is downloaded is appended
     #to the 'demos' list in the json to avoid duplicates.
     def downloadDemos(self):
-        newServerList = ServerList()
+        newServerConfig = ServerList()
         if not os.path.exists("./demos"):
             os.makedirs("./demos")
         try:
             with open('./input/config.json', 'r') as f:
-                serverData = f.read()
-                serverList = json2obj(serverData)
-                toDownload = []
+                config = json2obj(f.read())
+                demosToDownload = []
                 toDownloadServerNames = []
-                serverListNames = []
-                for serverIndex, server in enumerate(serverList.servers, start=0):
-                    links = []
+                serverNameList = []
+                for serverIndex, server in enumerate(config.servers, start=0):
+                    demoDownloadLinks = []
                     demos = server.demos
                     for linkIndex, link in enumerate(server.links, start=0):
-                        links.append(link)
+                        demoDownloadLinks.append(link)
                         soup = BeautifulSoup(requests.get(link).text, 'html.parser')
                         for demoUrl in [link + node.get('href') for node in soup.find_all('a') if
                                         node.get('href').endswith('PRdemo')]:
                             if os.path.basename(demoUrl) not in server.demos:
-                                if server.name not in serverListNames:
-                                    serverListNames.append(server.name)
-                                toDownload.append(demoUrl)
+                                if server.name not in serverNameList:
+                                    serverNameList.append(server.name)
+                                demosToDownload.append(demoUrl)
                                 toDownloadServerNames.append(server.name)
                                 demos.append(os.path.basename(demoUrl))
-                    newServerList.servers.append(Server(server.name, links, demos))
-                if len(toDownload) != 0:
-                    print "Downloading available PRDemos from servers(" + ','.join(serverListNames) + ")..."
-                    for demoIndex, demoUrl in enumerate(toDownload, start=0):
-                        update_progress(float(demoIndex) / len(toDownload),
-                                        "(" + str(demoIndex) + "/" + str(len(toDownload)) + ") " + toDownloadServerNames[
+                    newServerConfig.servers.append(Server(server.name, demoDownloadLinks, demos))
+                if len(demosToDownload) != 0:
+                    print "Downloading available PRDemos from servers(" + ','.join(serverNameList) + ")..."
+                    for demoIndex, demoUrl in enumerate(demosToDownload, start=0):
+                        update_progress(float(demoIndex) / len(demosToDownload),
+                                        "(" + str(demoIndex) + "/" + str(len(demosToDownload)) + ") " + toDownloadServerNames[
                                             demoIndex] + "/" + os.path.basename(demoUrl))
                         urllib.urlretrieve(demoUrl, "./demos/" + os.path.basename(demoUrl))
-                        update_progress(float(demoIndex) / len(toDownload),"")
+                        update_progress(float(demoIndex) / len(demosToDownload),"")
                     update_progress(1, "")
-                    print "\nAll available PRDemos from servers("+ str(len(toDownload)) + ") downloaded."
+                    print "\nAll available PRDemos from servers("+ str(len(demosToDownload)) + ") downloaded."
                 else:
                     print "There are no new PRDemos to download."
             with safe_open_w("./input/config.json") as f:
-                f.write(newServerList.toJSON())
+                f.write(newServerConfig.toJSON())
         except:
             print "/input/config.json file not found. Can't download demos automatically."
 
     #Generate heatmap data based on player locations. Includes importing of existing data through loading in
     #existing numpy matrixes (.npy) files found in the data folder for each route.
     def generateHeatMaps(self):
-        routeCount = 0
+        totalRouteCount = 0
         for versionname,version in self.versions.iteritems():
             for mapname, map in version.iteritems():
-                for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
-                    for layerIndex, layer in enumerate(gameMode.layers, start=0):
-                        for routeIndex, route in enumerate(layer.routes, start=0):
-                            routeCount += 1
-        counter = 1
-        if routeCount != 0:
+                for gameModeIndex, gameMode in map.gameModes:
+                    for layerIndex, layer in gameModes:
+                        for routeIndex, route in layer.routes:
+                            totalRouteCount += 1
+        currentRouteCount = 1
+        if totalRouteCount != 0:
             print "Generating heatmaps..."
             for versionname,version in self.versions.iteritems():
                 for mapname, map in version.iteritems():
                     for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
                         for layerIndex, layer in enumerate(gameMode.layers, start=0):
                             for routeIndex, route in enumerate(layer.routes, start=0):
-                                update_progress(float(counter) / routeCount,
-                                                "(" + str(counter) + "/" + str(
-                                                    routeCount) + ") " + versionname + "/" + mapname + "/" + gameMode.name + "/" + layer.name + "/" + route.id)
+                                update_progress(float(currentRouteCount) / totalRouteCount,
+                                                "(" + str(currentRouteCount) + "/" + str(
+                                                    totalRouteCount) + ") " + versionname + "/" + mapname + "/" + gameMode.name + "/" + layer.name + "/" + route.id)
                                 routeHeatMap = np.zeros(shape=(512,512))
                                 routeData = []
                                 try:
-                                    k = np.load(str("./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id + ".npy"))
-                                    routeHeatMap = routeHeatMap + k
+                                    importedRouteHeatMap = np.load(str("./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id + ".npy"))
+                                    routeHeatMap = routeHeatMap + importedRouteHeatMap
                                 except Exception, e:
                                     pass
                                 for parsedDemo in route.roundsPlayed:
@@ -880,22 +876,20 @@ class StatsParser:
                                     it.iternext()
                                 with safe_open_w("./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id + ".json") as f:
                                     f.write(json.dumps(routeData))
-                    update_progress(float(counter) / routeCount, "")
-                    counter += 1
-            print "\nAll heatmaps(" + str(routeCount) +") generated."
+                    update_progress(float(currentRouteCount) / totalRouteCount, "")
+                    currentRouteCount += 1
+            print "\nAll heatmaps(" + str(totalRouteCount) +") generated."
         else:
             print "There is no data to generate heatmaps from."
 
 
-    def copyImages(self):
+    def copyData(self):
         imagescount = 0
         for index, filepath in enumerate(walkdir("./input"), start=0):
             if fnmatch(filepath, "*.jpg"):
                 imagescount += 1
         if imagescount > 0:
             print "Copying images to data folder..."
-            if not os.path.exists("./data"):
-                os.makedirs("./data")
             if not os.path.exists("./data/images"):
                 os.makedirs("./data/images")
             for index, filepath in enumerate(walkdir("./input"), start=0):
@@ -905,6 +899,18 @@ class StatsParser:
             print "All images copied to data folder."
         else:
             print "No images found to copy."
+        try:
+            print "Copying data to web folder..."
+            with open('./input/config.json', 'r') as f:
+                webPath = json2obj(f.read()).webpath
+                for index, filepath in enumerate(walkdir("./data"), start=0):
+                    head, tail = os.path.split(filepath)
+                    if fnmatch(filepath, "*.npy") is False:
+                        if not os.path.exists(webPath + "/data" + head.split("data")[1].replace("\\","/")):
+                            os.makedirs(webPath + "/data" + head.split("data")[1].replace("\\","/"))
+                        copyfile(filepath, webPath + "/data" + head.split("data")[1].replace("\\","/") + "/" + tail)
+        except:
+            print "Data copied to web folder."
 
 if __name__ == '__main__':
     StatsParser()
