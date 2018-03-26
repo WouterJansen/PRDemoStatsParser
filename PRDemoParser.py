@@ -799,6 +799,7 @@ class StatsParser:
                 demosToDownload = []
                 toDownloadServerNames = []
                 serverNameList = []
+
                 for serverIndex, server in enumerate(config.servers, start=0):
                     demoDownloadLinks = []
                     demos = server.demos
@@ -837,9 +838,9 @@ class StatsParser:
         totalRouteCount = 0
         for versionname,version in self.versions.iteritems():
             for mapname, map in version.iteritems():
-                for gameModeIndex, gameMode in map.gameModes:
-                    for layerIndex, layer in gameModes:
-                        for routeIndex, route in layer.routes:
+                for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
+                    for layerIndex, layer in enumerate(gameMode.layers, start=0):
+                        for routeIndex, route in enumerate(layer.routes, start=0):
                             totalRouteCount += 1
         currentRouteCount = 1
         if totalRouteCount != 0:
@@ -909,8 +910,10 @@ class StatsParser:
                         if not os.path.exists(webPath + "/data" + head.split("data")[1].replace("\\","/")):
                             os.makedirs(webPath + "/data" + head.split("data")[1].replace("\\","/"))
                         copyfile(filepath, webPath + "/data" + head.split("data")[1].replace("\\","/") + "/" + tail)
-        except:
             print "Data copied to web folder."
+        except:
+            print "Could not copy data to web folder."
+
 
 if __name__ == '__main__':
     StatsParser()
