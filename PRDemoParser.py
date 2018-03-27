@@ -902,7 +902,7 @@ class StatsParser:
                                 if not os.path.exists("./data/" + versionname + "/" + mapname):
                                     os.makedirs("./data/" + versionname + "/" + mapname)
                                 np.save(
-                                    "./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id,
+                                    "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id,
                                     routeHeatMap)
                                 if routeHeatMap.max() != 0:
                                     routeHeatMap = routeHeatMap/routeHeatMap.max()
@@ -911,7 +911,7 @@ class StatsParser:
                                     if it[0] > 0:
                                         routeData.append({ "x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": float(it[0]) })
                                     it.iternext()
-                                with safe_open_w("./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id + ".json") as f:
+                                with safe_open_w("./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id + ".json") as f:
                                     f.write(json.dumps(routeData))
                                 layerHeatMap = layerHeatMap + routeHeatMap
                                 currentRouteCount += 1
@@ -924,7 +924,7 @@ class StatsParser:
                                                       "value": float(it[0])})
                                 it.iternext()
                             with safe_open_w(
-                                    "./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + ".json") as f:
+                                    "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + ".json") as f:
                                 f.write(json.dumps(layerData))
                             gameModeHeatMap = gameModeHeatMap + layerHeatMap
                         if gameModeHeatMap.max() != 0:
@@ -936,7 +936,7 @@ class StatsParser:
                                                   "value": float(it[0])})
                             it.iternext()
                         with safe_open_w(
-                                "./data/" + versionname + "/" + mapname + "/" + gameMode.name + ".json") as f:
+                                "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + ".json") as f:
                             f.write(json.dumps(gameModeData))
                         mapHeatMap = mapHeatMap + gameModeHeatMap
                     if mapHeatMap.max() != 0:
@@ -948,7 +948,7 @@ class StatsParser:
                                                  "value": float(it[0])})
                         it.iternext()
                     with safe_open_w(
-                            "./data/" + versionname + "/" + mapname + "/" + mapname + ".json") as f:
+                            "./data/" + versionname + "/" + mapname + "/combinedmovement.json") as f:
                         f.write(json.dumps(mapData))
             update_progress(1, "")
             print "\nAll heatmaps(" + str(totalRouteCount) +") generated."
