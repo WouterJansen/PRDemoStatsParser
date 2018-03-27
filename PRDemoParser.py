@@ -928,7 +928,7 @@ class StatsParser:
                         copyfile(filepath, webPath + "/data" + head.split("data")[1].replace("\\","/") + "/" + tail)
             print "Data copied to web folder."
         except:
-            print "Could not copy data to web folder."
+            print "Web folder path not defined in /input/config.json. Can't copy data."
 
 
 if __name__ == '__main__':

@@ -21,9 +21,9 @@ Script for generating statistical data from PRDemo(PR Tracker) files from The Ba
 }
 ```
 * A ```config.json``` in the _input_ folder with (see format below):
-    * information on which servers and their corresponding URLs to look for PRDemo download links. 
     * The path to your pr_repo (used by ```generateInput.py```, see below).
     * The path to your web-folder where the data is used. Setting this value allows for automatic copying of the data folder to this path. 
+    * information on which servers and their corresponding URLs to look for PRDemo download links. It can also be to a JSON where it uses a crawler to find the download links. See example link in code below.
 ```javascript
 {
     "prpath": "D:/Project Reality/Project Reality BF2/mods/pr_repo",
@@ -31,10 +31,15 @@ Script for generating statistical data from PRDemo(PR Tracker) files from The Ba
     "servers": [
         {
             "demos": [],
+            "links": [ "https://projects.uturista.pt/trackers/tracker.json" ],
+            "name": "Crawler Servers"
+        },
+        {
+            "demos": [],
             "links": [ "www.community1.com/tracker/server1/", "www.community1.com/tracker/server2/" ], 
             "name": "servername1"
         },
-	{
+	    {
 	    "demos": [],
             "links": [ "www.community2.com/tracker/" ], 
             "name": "servername2"
