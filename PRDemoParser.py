@@ -805,7 +805,6 @@ class StatsParser:
     def downloadDemos(self):
         try:
             with open('./input/config.json', 'r') as f:
-
                 if not os.path.exists("./demos"):
                     os.makedirs("./demos")
                 config = json2obj(f.read())
@@ -915,7 +914,6 @@ class StatsParser:
                                 with safe_open_w("./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id + ".json") as f:
                                     f.write(json.dumps(routeData))
                                 layerHeatMap = layerHeatMap + routeHeatMap
-                                update_progress(float(currentRouteCount) / totalRouteCount, "")
                                 currentRouteCount += 1
                             if layerHeatMap.max() != 0:
                                 layerHeatMap = layerHeatMap / layerHeatMap.max()
