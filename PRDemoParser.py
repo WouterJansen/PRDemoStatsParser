@@ -803,65 +803,65 @@ class StatsParser:
     #Download new demos from servers defined in /input/config.json. Every demo that is downloaded is appended
     #to the 'demos' list in the json to avoid duplicates.
     def downloadDemos(self):
-        # try:
-        with open('./input/config.json', 'r') as f:
+        try:
+            with open('./input/config.json', 'r') as f:
 
-            if not os.path.exists("./demos"):
-                os.makedirs("./demos")
-            config = json2obj(f.read())
-            demosToDownload = []
-            toDownloadServerNames = []
-            serverNameList = []
-            if hasattr(config, 'prpath') and hasattr(config, 'webpath'):
-                newServerConfig = ServerList(config.prpath,config.webpath)
-            elif hasattr(config, 'prpath'):
-                newServerConfig = ServerList(config.prpath, None)
-            elif hasattr(config, 'webpath'):
-                newServerConfig = ServerList(None, config.webpath)
-            else:
-                newServerConfig = ServerList(None, None)
-            for serverIndex, server in enumerate(config.servers, start=0):
-                demoDownloadLinks = []
-                demos = server.demos
-                for linkIndex, link in enumerate(server.links, start=0):
-                    demoDownloadLinks.append(link)
-                    if fnmatch(link, "*.json"):
-                        crawlers = json2obj(urllib.urlopen(link).read())
-                        for crawler in crawlers:
-                            for demoUrlIndex, demoUrl in enumerate(crawler.Trackers, start=0):
+                if not os.path.exists("./demos"):
+                    os.makedirs("./demos")
+                config = json2obj(f.read())
+                demosToDownload = []
+                toDownloadServerNames = []
+                serverNameList = []
+                if hasattr(config, 'prpath') and hasattr(config, 'webpath'):
+                    newServerConfig = ServerList(config.prpath,config.webpath)
+                elif hasattr(config, 'prpath'):
+                    newServerConfig = ServerList(config.prpath, None)
+                elif hasattr(config, 'webpath'):
+                    newServerConfig = ServerList(None, config.webpath)
+                else:
+                    newServerConfig = ServerList(None, None)
+                for serverIndex, server in enumerate(config.servers, start=0):
+                    demoDownloadLinks = []
+                    demos = server.demos
+                    for linkIndex, link in enumerate(server.links, start=0):
+                        demoDownloadLinks.append(link)
+                        if fnmatch(link, "*.json"):
+                            crawlers = json2obj(urllib.urlopen(link).read())
+                            for crawler in crawlers:
+                                for demoUrlIndex, demoUrl in enumerate(crawler.Trackers, start=0):
+                                    if getDemoName(demoUrl) not in server.demos:
+                                        if server.name not in serverNameList:
+                                            serverNameList.append(server.name)
+                                        demosToDownload.append(demoUrl)
+                                        toDownloadServerNames.append(server.name)
+                                        demos.append(getDemoName(demoUrl))
+                        else:
+                            soup = BeautifulSoup(requests.get(link).text, 'html.parser')
+                            for demoUrl in [link + node.get('href') for node in soup.find_all('a') if
+                                            node.get('href').endswith('PRdemo')]:
                                 if getDemoName(demoUrl) not in server.demos:
                                     if server.name not in serverNameList:
                                         serverNameList.append(server.name)
                                     demosToDownload.append(demoUrl)
                                     toDownloadServerNames.append(server.name)
                                     demos.append(getDemoName(demoUrl))
-                    else:
-                        soup = BeautifulSoup(requests.get(link).text, 'html.parser')
-                        for demoUrl in [link + node.get('href') for node in soup.find_all('a') if
-                                        node.get('href').endswith('PRdemo')]:
-                            if getDemoName(demoUrl) not in server.demos:
-                                if server.name not in serverNameList:
-                                    serverNameList.append(server.name)
-                                demosToDownload.append(demoUrl)
-                                toDownloadServerNames.append(server.name)
-                                demos.append(getDemoName(demoUrl))
-                newServerConfig.servers.append(Server(server.name, demoDownloadLinks, demos))
-            if len(demosToDownload) != 0:
-                print "Downloading available PRDemos from servers(" + ','.join(serverNameList) + ")..."
-                for demoIndex, demoUrl in enumerate(demosToDownload, start=0):
-                    update_progress(float(demoIndex) / len(demosToDownload),
-                                    "(" + str(demoIndex) + "/" + str(len(demosToDownload)) + ") " + toDownloadServerNames[
-                                        demoIndex] + "/" + getDemoName(demoUrl))
-                    urllib.urlretrieve(demoUrl, "./demos/" + getDemoName(demoUrl))
-                    update_progress(float(demoIndex) / len(demosToDownload),"")
-                update_progress(1, "")
-                print "\nAll available PRDemos from servers("+ str(len(demosToDownload)) + ") downloaded."
-            else:
-                print "There are no new PRDemos to download."
-            with safe_open_w("./input/config.json") as f:
-                f.write(newServerConfig.toJSON())
-        # except:
-        #     print "/input/config.json file not found. Can't download demos automatically."
+                    newServerConfig.servers.append(Server(server.name, demoDownloadLinks, demos))
+                if len(demosToDownload) != 0:
+                    print "Downloading available PRDemos from servers(" + ','.join(serverNameList) + ")..."
+                    for demoIndex, demoUrl in enumerate(demosToDownload, start=0):
+                        update_progress(float(demoIndex) / len(demosToDownload),
+                                        "(" + str(demoIndex) + "/" + str(len(demosToDownload)) + ") " + toDownloadServerNames[
+                                            demoIndex] + "/" + getDemoName(demoUrl))
+                        urllib.urlretrieve(demoUrl, "./demos/" + getDemoName(demoUrl))
+                        update_progress(float(demoIndex) / len(demosToDownload),"")
+                    update_progress(1, "")
+                    print "\nAll available PRDemos from servers("+ str(len(demosToDownload)) + ") downloaded."
+                else:
+                    print "There are no new PRDemos to download."
+                with safe_open_w("./input/config.json") as f:
+                    f.write(newServerConfig.toJSON())
+        except:
+            print "/input/config.json file not found. Can't download demos automatically."
 
     #Generate heatmap data based on player locations. Includes importing of existing data through loading in
     #existing numpy matrixes (.npy) files found in the data folder for each route.
@@ -914,9 +914,45 @@ class StatsParser:
                                     it.iternext()
                                 with safe_open_w("./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id + ".json") as f:
                                     f.write(json.dumps(routeData))
-
-                    update_progress(float(currentRouteCount) / totalRouteCount, "")
-                    currentRouteCount += 1
+                                layerHeatMap = layerHeatMap + routeHeatMap
+                                update_progress(float(currentRouteCount) / totalRouteCount, "")
+                                currentRouteCount += 1
+                            if layerHeatMap.max() != 0:
+                                layerHeatMap = layerHeatMap / layerHeatMap.max()
+                            it = np.nditer(layerHeatMap, flags=['multi_index'])
+                            while not it.finished:
+                                if it[0] > 0:
+                                    layerData.append({"x": int(it.multi_index[0]), "y": int(it.multi_index[1]),
+                                                      "value": float(it[0])})
+                                it.iternext()
+                            with safe_open_w(
+                                    "./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + ".json") as f:
+                                f.write(json.dumps(layerData))
+                            gameModeHeatMap = gameModeHeatMap + layerHeatMap
+                        if gameModeHeatMap.max() != 0:
+                            gameModeHeatMap = gameModeHeatMap / gameModeHeatMap.max()
+                        it = np.nditer(gameModeHeatMap, flags=['multi_index'])
+                        while not it.finished:
+                            if it[0] > 0:
+                                gameModeData.append({"x": int(it.multi_index[0]), "y": int(it.multi_index[1]),
+                                                  "value": float(it[0])})
+                            it.iternext()
+                        with safe_open_w(
+                                "./data/" + versionname + "/" + mapname + "/" + gameMode.name + ".json") as f:
+                            f.write(json.dumps(gameModeData))
+                        mapHeatMap = mapHeatMap + gameModeHeatMap
+                    if mapHeatMap.max() != 0:
+                        mapHeatMap = mapHeatMap / mapHeatMap.max()
+                    it = np.nditer(mapHeatMap, flags=['multi_index'])
+                    while not it.finished:
+                        if it[0] > 0:
+                            mapData.append({"x": int(it.multi_index[0]), "y": int(it.multi_index[1]),
+                                                 "value": float(it[0])})
+                        it.iternext()
+                    with safe_open_w(
+                            "./data/" + versionname + "/" + mapname + "/" + mapname + ".json") as f:
+                        f.write(json.dumps(mapData))
+            update_progress(1, "")
             print "\nAll heatmaps(" + str(totalRouteCount) +") generated."
         else:
             print "There is no data to generate heatmaps from."
