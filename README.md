@@ -5,7 +5,7 @@ Script for generating statistical data from PRDemo(PR Tracker) files from The Ba
 * Python 2.7.
 * Needs python packages **numpy**, **requests** and **beautifulsoup4**.
 
-## Optional
+## Configuration (optional)
 * Supports a folder _input_ with all minimaps as jpg's of size 512x512 with their name as the mapname (to display heatmaps on). (These can be generated automatically by ```generateInput.py```, see below)
 * A ```maps.json``` in the _input_ folder with information on the display name and the scale of the map(1,2,4 or 8). Without the scale defined there will be no heatmap data generated. (This can be generated automatically by ```generateInput.py```, see below) Format:
 ```javascript
@@ -22,7 +22,7 @@ Script for generating statistical data from PRDemo(PR Tracker) files from The Ba
 ```
 * A ```config.json``` in the _input_ folder with (see format below):
     * The path to your pr_repo (used by ```generateInput.py```, see below).
-    * The path to your web-folder where the data is used. Setting this value allows for automatic copying of the data folder to this path. 
+    * The path to your web-folder where the data is used. Setting this allows for automatic copying of the data folder to this path. 
     * information on which servers and their corresponding URLs to look for PRDemo download links. It can also be to a JSON where it uses a crawler to find the download links. See example link in code below.
 ```javascript
 {
