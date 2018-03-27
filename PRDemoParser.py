@@ -185,8 +185,12 @@ class ParsedDemo(object):
 
 class ServerList(object):
 
-    def __init__(self):
+    def __init__(self,prpath,webpath):
         self.date = str(datetime.datetime.now())
+        if prpath != None:
+            self.prpath = prpath
+        if webpath != None:
+            self.webpath = webpath
         self.servers = []
 
     # Write object to JSON string
@@ -683,27 +687,30 @@ class StatsParser:
             demosToParseCount += 1
         filesToParse = []
         if demosToParseCount != 0:
-            print "Parsing new PRDemos..."
             for index, filepath in enumerate(walkdir("./demos"), start=0):
                 head, tail = os.path.split(filepath)
                 if os.stat(filepath).st_size > 10000:
                     filesToParse.append(filepath)
-            pool = multiprocessing.Pool(multiprocessing.cpu_count()-1)
-            resultingParsedDemos = pool.map_async(parseNewDemo, filesToParse,chunksize=1)
-            pool.close()
-            while (True):
-                update_progress(float(len(filesToParse) - resultingParsedDemos._number_left) / len(filesToParse), "(" + str(len(filesToParse) - resultingParsedDemos._number_left) + "/" + str(len(filesToParse)) +")")
-                time.sleep(0.5)
-                if (resultingParsedDemos.ready()): break
-            resultingParsedDemos.wait()
-            update_progress(1, "")
-            resultingParsedDemos = resultingParsedDemos.get()
-            for parsedDemo in resultingParsedDemos:
-                self.demoToData(parsedDemo)
-            filelist = [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]
-            for f in filelist:
-                os.remove(os.path.join("./demos", f))
-            print "\nParsing of new PRDemos(" + str(demosToParseCount) + ") complete."
+            if len(filesToParse) != 0:
+                print "Parsing new PRDemos..."
+                pool = multiprocessing.Pool(multiprocessing.cpu_count()-1)
+                resultingParsedDemos = pool.map_async(parseNewDemo, filesToParse,chunksize=1)
+                pool.close()
+                while (True):
+                    update_progress(float(len(filesToParse) - resultingParsedDemos._number_left) / len(filesToParse), "(" + str(len(filesToParse) - resultingParsedDemos._number_left) + "/" + str(len(filesToParse)) +")")
+                    time.sleep(0.5)
+                    if (resultingParsedDemos.ready()): break
+                resultingParsedDemos.wait()
+                update_progress(1, "")
+                resultingParsedDemos = resultingParsedDemos.get()
+                for parsedDemo in resultingParsedDemos:
+                    self.demoToData(parsedDemo)
+                filelist = [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]
+                for f in filelist:
+                    os.remove(os.path.join("./demos", f))
+                print "\nParsing of new PRDemos(" + str(demosToParseCount) + ") complete."
+            else:
+                print "There are no new PRDemos to parse."
         else:
             print "There are no new PRDemos to parse."
 
@@ -796,57 +803,65 @@ class StatsParser:
     #Download new demos from servers defined in /input/config.json. Every demo that is downloaded is appended
     #to the 'demos' list in the json to avoid duplicates.
     def downloadDemos(self):
-        newServerConfig = ServerList()
-        if not os.path.exists("./demos"):
-            os.makedirs("./demos")
-        try:
-            with open('./input/config.json', 'r') as f:
-                config = json2obj(f.read())
-                demosToDownload = []
-                toDownloadServerNames = []
-                serverNameList = []
-                for serverIndex, server in enumerate(config.servers, start=0):
-                    demoDownloadLinks = []
-                    demos = server.demos
-                    for linkIndex, link in enumerate(server.links, start=0):
-                        demoDownloadLinks.append(link)
-                        if fnmatch(link, "*.json"):
-                            crawlers = json2obj(urllib.urlopen(link).read())
-                            for crawler in crawlers:
-                                for demoUrlIndex, demoUrl in enumerate(crawler.Trackers, start=0):
-                                    if getDemoName(demoUrl) not in server.demos:
-                                        if server.name not in serverNameList:
-                                            serverNameList.append(server.name)
-                                        demosToDownload.append(demoUrl)
-                                        toDownloadServerNames.append(server.name)
-                                        demos.append(getDemoName(demoUrl))
-                        else:
-                            soup = BeautifulSoup(requests.get(link).text, 'html.parser')
-                            for demoUrl in [link + node.get('href') for node in soup.find_all('a') if
-                                            node.get('href').endswith('PRdemo')]:
+        # try:
+        with open('./input/config.json', 'r') as f:
+
+            if not os.path.exists("./demos"):
+                os.makedirs("./demos")
+            config = json2obj(f.read())
+            demosToDownload = []
+            toDownloadServerNames = []
+            serverNameList = []
+            if hasattr(config, 'prpath') and hasattr(config, 'webpath'):
+                newServerConfig = ServerList(config.prpath,config.webpath)
+            elif hasattr(config, 'prpath'):
+                newServerConfig = ServerList(config.prpath, None)
+            elif hasattr(config, 'webpath'):
+                newServerConfig = ServerList(None, config.webpath)
+            else:
+                newServerConfig = ServerList(None, None)
+            for serverIndex, server in enumerate(config.servers, start=0):
+                demoDownloadLinks = []
+                demos = server.demos
+                for linkIndex, link in enumerate(server.links, start=0):
+                    demoDownloadLinks.append(link)
+                    if fnmatch(link, "*.json"):
+                        crawlers = json2obj(urllib.urlopen(link).read())
+                        for crawler in crawlers:
+                            for demoUrlIndex, demoUrl in enumerate(crawler.Trackers, start=0):
                                 if getDemoName(demoUrl) not in server.demos:
                                     if server.name not in serverNameList:
                                         serverNameList.append(server.name)
                                     demosToDownload.append(demoUrl)
                                     toDownloadServerNames.append(server.name)
                                     demos.append(getDemoName(demoUrl))
-                    newServerConfig.servers.append(Server(server.name, demoDownloadLinks, demos))
-                if len(demosToDownload) != 0:
-                    print "Downloading available PRDemos from servers(" + ','.join(serverNameList) + ")..."
-                    for demoIndex, demoUrl in enumerate(demosToDownload, start=0):
-                        update_progress(float(demoIndex) / len(demosToDownload),
-                                        "(" + str(demoIndex) + "/" + str(len(demosToDownload)) + ") " + toDownloadServerNames[
-                                            demoIndex] + "/" + getDemoName(demoUrl))
-                        urllib.urlretrieve(demoUrl, "./demos/" + getDemoName(demoUrl))
-                        update_progress(float(demoIndex) / len(demosToDownload),"")
-                    update_progress(1, "")
-                    print "\nAll available PRDemos from servers("+ str(len(demosToDownload)) + ") downloaded."
-                else:
-                    print "There are no new PRDemos to download."
+                    else:
+                        soup = BeautifulSoup(requests.get(link).text, 'html.parser')
+                        for demoUrl in [link + node.get('href') for node in soup.find_all('a') if
+                                        node.get('href').endswith('PRdemo')]:
+                            if getDemoName(demoUrl) not in server.demos:
+                                if server.name not in serverNameList:
+                                    serverNameList.append(server.name)
+                                demosToDownload.append(demoUrl)
+                                toDownloadServerNames.append(server.name)
+                                demos.append(getDemoName(demoUrl))
+                newServerConfig.servers.append(Server(server.name, demoDownloadLinks, demos))
+            if len(demosToDownload) != 0:
+                print "Downloading available PRDemos from servers(" + ','.join(serverNameList) + ")..."
+                for demoIndex, demoUrl in enumerate(demosToDownload, start=0):
+                    update_progress(float(demoIndex) / len(demosToDownload),
+                                    "(" + str(demoIndex) + "/" + str(len(demosToDownload)) + ") " + toDownloadServerNames[
+                                        demoIndex] + "/" + getDemoName(demoUrl))
+                    urllib.urlretrieve(demoUrl, "./demos/" + getDemoName(demoUrl))
+                    update_progress(float(demoIndex) / len(demosToDownload),"")
+                update_progress(1, "")
+                print "\nAll available PRDemos from servers("+ str(len(demosToDownload)) + ") downloaded."
+            else:
+                print "There are no new PRDemos to download."
             with safe_open_w("./input/config.json") as f:
                 f.write(newServerConfig.toJSON())
-        except:
-            print "/input/config.json file not found. Can't download demos automatically."
+        # except:
+        #     print "/input/config.json file not found. Can't download demos automatically."
 
     #Generate heatmap data based on player locations. Includes importing of existing data through loading in
     #existing numpy matrixes (.npy) files found in the data folder for each route.
@@ -863,8 +878,14 @@ class StatsParser:
             print "Generating heatmaps..."
             for versionname,version in self.versions.iteritems():
                 for mapname, map in version.iteritems():
+                    mapHeatMap = np.zeros(shape=(512, 512))
+                    mapData = []
                     for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
+                        gameModeHeatMap = np.zeros(shape=(512, 512))
+                        gameModeData = []
                         for layerIndex, layer in enumerate(gameMode.layers, start=0):
+                            layerHeatMap = np.zeros(shape=(512, 512))
+                            layerData = []
                             for routeIndex, route in enumerate(layer.routes, start=0):
                                 update_progress(float(currentRouteCount) / totalRouteCount,
                                                 "(" + str(currentRouteCount) + "/" + str(
@@ -893,6 +914,7 @@ class StatsParser:
                                     it.iternext()
                                 with safe_open_w("./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id + ".json") as f:
                                     f.write(json.dumps(routeData))
+
                     update_progress(float(currentRouteCount) / totalRouteCount, "")
                     currentRouteCount += 1
             print "\nAll heatmaps(" + str(totalRouteCount) +") generated."
