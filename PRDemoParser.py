@@ -480,7 +480,7 @@ class StatsParser:
     versions = {}
 
     def __init__(self):
-        # self.downloadDemos()
+        self.downloadDemos()
         self.importStats()
         self.dataAggragation()
         self.generateHeatMaps()
