@@ -15,7 +15,7 @@ import urllib
 import numpy as np
 import time
 from shutil import copyfile
-
+import urlparse
 ###############################
 #           HELPERS           #
 ###############################
@@ -24,6 +24,12 @@ from shutil import copyfile
 def _json_object_hook(d): return namedtuple('X', d.keys())(*d.values())
 def json2obj(data): return json.loads(data, object_hook=_json_object_hook)
 
+
+def getDemoName(demoUrl):
+    if "file=" in demoUrl:
+       return demoUrl.split("file=")[1]
+    else:
+        return os.path.basename(demoUrl)
 
 # Helper functions to safely create new folders if it doesn't exist already
 def mkdir_p(path):
@@ -475,12 +481,12 @@ class StatsParser:
 
     def __init__(self):
         self.downloadDemos()
-        self.importStats()
-        self.dataAggragation()
-        self.generateHeatMaps()
-        self.statsCalc()
-        self.createMapList()
-        self.copyData()
+        # self.importStats()
+        # self.dataAggragation()
+        # self.generateHeatMaps()
+        # self.statsCalc()
+        # self.createMapList()
+        # self.copyData()
 
     # Calculate statistics such as times played and average tickets based on data
     def statsCalc(self):
@@ -793,44 +799,54 @@ class StatsParser:
         newServerConfig = ServerList()
         if not os.path.exists("./demos"):
             os.makedirs("./demos")
-        try:
-            with open('./input/config.json', 'r') as f:
-                config = json2obj(f.read())
-                demosToDownload = []
-                toDownloadServerNames = []
-                serverNameList = []
-
-                for serverIndex, server in enumerate(config.servers, start=0):
-                    demoDownloadLinks = []
-                    demos = server.demos
-                    for linkIndex, link in enumerate(server.links, start=0):
-                        demoDownloadLinks.append(link)
+        # try:
+        with open('./input/config.json', 'r') as f:
+            config = json2obj(f.read())
+            demosToDownload = []
+            toDownloadServerNames = []
+            serverNameList = []
+            for serverIndex, server in enumerate(config.servers, start=0):
+                demoDownloadLinks = []
+                demos = server.demos
+                for linkIndex, link in enumerate(server.links, start=0):
+                    demoDownloadLinks.append(link)
+                    if fnmatch(link, "*.json"):
+                        crawlers = json2obj(urllib.urlopen(link).read())
+                        for crawler in crawlers:
+                            for demoUrlIndex, demoUrl in enumerate(crawler.Trackers, start=0):
+                                if getDemoName(demoUrl) not in server.demos:
+                                    if server.name not in serverNameList:
+                                        serverNameList.append(server.name)
+                                    demosToDownload.append(demoUrl)
+                                    toDownloadServerNames.append(server.name)
+                                    demos.append(getDemoName(demoUrl))
+                    else:
                         soup = BeautifulSoup(requests.get(link).text, 'html.parser')
                         for demoUrl in [link + node.get('href') for node in soup.find_all('a') if
                                         node.get('href').endswith('PRdemo')]:
-                            if os.path.basename(demoUrl) not in server.demos:
+                            if getDemoName(demoUrl) not in server.demos:
                                 if server.name not in serverNameList:
                                     serverNameList.append(server.name)
                                 demosToDownload.append(demoUrl)
                                 toDownloadServerNames.append(server.name)
-                                demos.append(os.path.basename(demoUrl))
-                    newServerConfig.servers.append(Server(server.name, demoDownloadLinks, demos))
-                if len(demosToDownload) != 0:
-                    print "Downloading available PRDemos from servers(" + ','.join(serverNameList) + ")..."
-                    for demoIndex, demoUrl in enumerate(demosToDownload, start=0):
-                        update_progress(float(demoIndex) / len(demosToDownload),
-                                        "(" + str(demoIndex) + "/" + str(len(demosToDownload)) + ") " + toDownloadServerNames[
-                                            demoIndex] + "/" + os.path.basename(demoUrl))
-                        urllib.urlretrieve(demoUrl, "./demos/" + os.path.basename(demoUrl))
-                        update_progress(float(demoIndex) / len(demosToDownload),"")
-                    update_progress(1, "")
-                    print "\nAll available PRDemos from servers("+ str(len(demosToDownload)) + ") downloaded."
-                else:
-                    print "There are no new PRDemos to download."
-            with safe_open_w("./input/config.json") as f:
-                f.write(newServerConfig.toJSON())
-        except:
-            print "/input/config.json file not found. Can't download demos automatically."
+                                demos.append(getDemoName(demoUrl))
+                newServerConfig.servers.append(Server(server.name, demoDownloadLinks, demos))
+            if len(demosToDownload) != 0:
+                print "Downloading available PRDemos from servers(" + ','.join(serverNameList) + ")..."
+                for demoIndex, demoUrl in enumerate(demosToDownload, start=0):
+                    update_progress(float(demoIndex) / len(demosToDownload),
+                                    "(" + str(demoIndex) + "/" + str(len(demosToDownload)) + ") " + toDownloadServerNames[
+                                        demoIndex] + "/" + getDemoName(demoUrl))
+                    urllib.urlretrieve(demoUrl, "./demos/" + getDemoName(demoUrl))
+                    update_progress(float(demoIndex) / len(demosToDownload),"")
+                update_progress(1, "")
+                print "\nAll available PRDemos from servers("+ str(len(demosToDownload)) + ") downloaded."
+            else:
+                print "There are no new PRDemos to download."
+        with safe_open_w("./input/config.json") as f:
+            f.write(newServerConfig.toJSON())
+        # except:
+        #     print "/input/config.json file not found. Can't download demos automatically."
 
     #Generate heatmap data based on player locations. Includes importing of existing data through loading in
     #existing numpy matrixes (.npy) files found in the data folder for each route.
