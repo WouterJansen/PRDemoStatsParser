@@ -211,7 +211,7 @@ class MapList(object):
 
     def __init__(self):
         self.maps = []
-        self.date = str(datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+        self.date = str(datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M"))
 
     # Write object to JSON string
     def toJSON(self):
