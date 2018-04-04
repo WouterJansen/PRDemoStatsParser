@@ -892,7 +892,7 @@ class StatsParser:
                                 routeHeatMap = np.zeros(shape=(512,512))
                                 routeData = []
                                 try:
-                                    importedRouteHeatMap = np.load(str("./data/" + versionname + "/" + mapname + "/" + gameMode.name + "_" + layer.name + "_" + route.id + ".npy"))
+                                    importedRouteHeatMap = np.load(str("./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id + ".npy"))
                                     routeHeatMap = routeHeatMap + importedRouteHeatMap
                                 except Exception, e:
                                     pass
