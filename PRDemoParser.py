@@ -268,7 +268,7 @@ class Layer(object):
 
 class Route(object):
 
-    def __init__(self, id):
+    def __init__(self, id, updated):
         self.id = id
         self.roundsPlayed = []
         self.timesPlayed = 0
@@ -279,6 +279,7 @@ class Route(object):
         self.winsTeam2 = 0
         self.draws = 0
         self.heatMap = 0
+        self.updated = updated
 
 class Player:
     def __init__(self):
@@ -609,7 +610,7 @@ class StatsParser:
             print "Data to calculate and export statistics not found."
 
     # Map the parsedDemo to the correct structure in the statistics based on Map,GameMode,Layer,Route
-    def demoToData(self,parsedDemo):
+    def demoToData(self,parsedDemo,updated):
         if parsedDemo.map != 0 and ((parsedDemo.gameMode == "Co-Operative" and parsedDemo.playerCount > 2) or (
                 parsedDemo.gameMode != "Co-Operative" and parsedDemo.gameMode != "Skirmish" and parsedDemo.playerCount > 64) or (
                                             parsedDemo.gameMode == "Skirmish" and parsedDemo.playerCount > 8)):
@@ -633,10 +634,14 @@ class StatsParser:
                                             self.versions[parsedDemo.version][parsedDemo.map].gameModes[
                                                 gameModeIndex].layers[
                                                 layerIndex].routes[routeIndex].roundsPlayed.append(parsedDemo)
+                                            if updated:
+                                                self.versions[parsedDemo.version][parsedDemo.map].gameModes[
+                                                    gameModeIndex].layers[
+                                                    layerIndex].routes[routeIndex].updated = True
                                             routeFound = True
                                     if not routeFound:
                                         self.versions[parsedDemo.version][parsedDemo.map].gameModes[gameModeIndex].layers[
-                                            layerIndex].routes.append(Route(parsedDemo.getFlagId()))
+                                            layerIndex].routes.append(Route(parsedDemo.getFlagId(),updated))
                                         self.versions[parsedDemo.version][parsedDemo.map].gameModes[gameModeIndex].layers[
                                             layerIndex].routes[-1].roundsPlayed.append(parsedDemo)
                                 layerFound = True
@@ -645,7 +650,7 @@ class StatsParser:
                                     Layer(parsedDemo.layer))
                                 self.versions[parsedDemo.version][parsedDemo.map].gameModes[gameModeIndex].layers[
                                     -1].routes.append(
-                                    Route(parsedDemo.getFlagId()))
+                                    Route(parsedDemo.getFlagId(),updated))
                                 self.versions[parsedDemo.version][parsedDemo.map].gameModes[gameModeIndex].layers[-1].routes[
                                     0].roundsPlayed.append(
                                     parsedDemo)
@@ -655,7 +660,7 @@ class StatsParser:
                         self.versions[parsedDemo.version][parsedDemo.map].gameModes[-1].layers.append(
                             Layer(parsedDemo.layer))
                         self.versions[parsedDemo.version][parsedDemo.map].gameModes[-1].layers[0].routes.append(
-                            Route(parsedDemo.getFlagId()))
+                            Route(parsedDemo.getFlagId(),updated))
                         self.versions[parsedDemo.version][parsedDemo.map].gameModes[-1].layers[0].routes[
                             0].roundsPlayed.append(parsedDemo)
                 else:
@@ -663,7 +668,7 @@ class StatsParser:
                     self.versions[parsedDemo.version][parsedDemo.map].gameModes.append(GameMode(parsedDemo.gameMode))
                     self.versions[parsedDemo.version][parsedDemo.map].gameModes[0].layers.append(Layer(parsedDemo.layer))
                     self.versions[parsedDemo.version][parsedDemo.map].gameModes[0].layers[0].routes.append(
-                        Route(parsedDemo.getFlagId()))
+                        Route(parsedDemo.getFlagId(),updated))
                     self.versions[parsedDemo.version][parsedDemo.map].gameModes[0].layers[0].routes[0].roundsPlayed.append(
                         parsedDemo)
             else:
@@ -673,7 +678,7 @@ class StatsParser:
                 self.versions[parsedDemo.version][parsedDemo.map].gameModes[0].layers.append(
                     Layer(parsedDemo.layer))
                 self.versions[parsedDemo.version][parsedDemo.map].gameModes[0].layers[0].routes.append(
-                    Route(parsedDemo.getFlagId()))
+                    Route(parsedDemo.getFlagId(),updated))
                 self.versions[parsedDemo.version][parsedDemo.map].gameModes[0].layers[0].routes[
                     0].roundsPlayed.append(parsedDemo)
 
@@ -704,7 +709,7 @@ class StatsParser:
                 update_progress(1, "")
                 resultingParsedDemos = resultingParsedDemos.get()
                 for parsedDemo in resultingParsedDemos:
-                    self.demoToData(parsedDemo)
+                    self.demoToData(parsedDemo,True)
                 filelist = [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]
                 for f in filelist:
                     os.remove(os.path.join("./demos", f))
@@ -775,10 +780,7 @@ class StatsParser:
             print "Importing existing statistics..."
             for index, filepath in enumerate(walkdir("./data"), start=0):
                 if fnmatch(filepath, "*statistics.json") is True:
-                    head, tail = os.path.split(filepath)
-                    update_progress(float(index) / totalStatisticsCount,
-                                    os.path.split(os.path.split(head)[0])[1] + "/" + os.path.basename(
-                                        os.path.normpath(head)))
+                    update_progress(float(index) / totalStatisticsCount,  "(" + str(index) + "/" + str(totalStatisticsCount) + ")")
                     with open(filepath, 'r') as f:
                         importedMapStatistics = json2obj(f.read())
                         for gamemode in importedMapStatistics.gameModes:
@@ -793,7 +795,7 @@ class StatsParser:
                                                              parsedDemo.duration, parsedDemo.playerCount,
                                                              parsedDemo.ticketsTeam1, parsedDemo.ticketsTeam2, flags)
                                         newDemo.completed = True
-                                        self.demoToData(newDemo)
+                                        self.demoToData(newDemo,False)
                     update_progress(float(index) / totalStatisticsCount,"")
 
             print "\nImport of existing statistics(" + str(totalStatisticsCount) + ") complete."
@@ -849,8 +851,7 @@ class StatsParser:
                     print "Downloading available PRDemos from servers(" + ','.join(serverNameList) + ")..."
                     for demoIndex, demoUrl in enumerate(demosToDownload, start=0):
                         update_progress(float(demoIndex) / len(demosToDownload),
-                                        "(" + str(demoIndex) + "/" + str(len(demosToDownload)) + ") " + toDownloadServerNames[
-                                            demoIndex] + "/" + getDemoName(demoUrl))
+                                        "(" + str(demoIndex) + "/" + str(len(demosToDownload)) + ")")
                         urllib.urlretrieve(demoUrl, "./demos/" + getDemoName(demoUrl))
                         update_progress(float(demoIndex) / len(demosToDownload),"")
                     update_progress(1, "")
@@ -865,93 +866,117 @@ class StatsParser:
     #Generate heatmap data based on player locations. Includes importing of existing data through loading in
     #existing numpy matrixes (.npy) files found in the data folder for each route.
     def generateHeatMaps(self):
-        totalRouteCount = 0
+        totalHeatMapCount = 0
         for versionname,version in self.versions.iteritems():
             for mapname, map in version.iteritems():
+                totalHeatMapCount += 1
                 for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
+                    totalHeatMapCount += 1
                     for layerIndex, layer in enumerate(gameMode.layers, start=0):
+                        totalHeatMapCount += 1
                         for routeIndex, route in enumerate(layer.routes, start=0):
-                            totalRouteCount += 1
-        currentRouteCount = 1
-        if totalRouteCount != 0:
+                            totalHeatMapCount += 1
+        currentHeatMapCount = 1
+        if totalHeatMapCount != 0:
             print "Generating heatmaps..."
             for versionname,version in self.versions.iteritems():
                 for mapname, map in version.iteritems():
+                    update_progress(float(currentHeatMapCount) / totalHeatMapCount,
+                                    "(" + str(currentHeatMapCount) + "/" + str(
+                                        totalHeatMapCount) + ")")
                     mapHeatMap = np.zeros(shape=(512, 512))
                     mapData = []
+                    gameModeChanged = False
                     for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
+                        update_progress(float(currentHeatMapCount) / totalHeatMapCount,
+                                        "(" + str(currentHeatMapCount) + "/" + str(
+                                            totalHeatMapCount) + ")")
                         gameModeHeatMap = np.zeros(shape=(512, 512))
                         gameModeData = []
+                        layerChanged = False
                         for layerIndex, layer in enumerate(gameMode.layers, start=0):
+                            update_progress(float(currentHeatMapCount) / totalHeatMapCount,
+                                            "(" + str(currentHeatMapCount) + "/" + str(
+                                                totalHeatMapCount) + ")")
                             layerHeatMap = np.zeros(shape=(512, 512))
                             layerData = []
+                            routeChanged = False
                             for routeIndex, route in enumerate(layer.routes, start=0):
-                                update_progress(float(currentRouteCount) / totalRouteCount,
-                                                "(" + str(currentRouteCount) + "/" + str(
-                                                    totalRouteCount) + ") " + versionname + "/" + mapname + "/" + gameMode.name + "/" + layer.name + "/" + route.id)
-                                routeHeatMap = np.zeros(shape=(512,512))
-                                routeData = []
-                                try:
-                                    importedRouteHeatMap = np.load(str("./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id + ".npy"))
-                                    routeHeatMap = routeHeatMap + importedRouteHeatMap
-                                except Exception, e:
-                                    pass
-                                for parsedDemo in route.roundsPlayed:
-                                    if type(parsedDemo.heatMap) is not type(None):
-                                        routeHeatMap = routeHeatMap + parsedDemo.heatMap
-                                if not os.path.exists("./data/" + versionname + "/" + mapname):
-                                    os.makedirs("./data/" + versionname + "/" + mapname)
-                                np.save(
-                                    "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id,
-                                    routeHeatMap)
-                                if routeHeatMap.max() != 0:
-                                    routeHeatMap = routeHeatMap/routeHeatMap.max()
-                                it = np.nditer(routeHeatMap, flags=['multi_index'])
+                                update_progress(float(currentHeatMapCount) / totalHeatMapCount,
+                                                "(" + str(currentHeatMapCount) + "/" + str(
+                                                    totalHeatMapCount) + ")")
+                                if route.updated:
+                                    routeChanged = True
+                                    routeHeatMap = np.zeros(shape=(512,512))
+                                    routeData = []
+                                    try:
+                                        importedRouteHeatMap = np.load(str("./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id + ".npy"))
+                                        routeHeatMap = routeHeatMap + importedRouteHeatMap
+                                    except Exception, e:
+                                        pass
+                                    for parsedDemo in route.roundsPlayed:
+                                        if type(parsedDemo.heatMap) is not type(None):
+                                            routeHeatMap = routeHeatMap + parsedDemo.heatMap
+                                    if not os.path.exists("./data/" + versionname + "/" + mapname):
+                                        os.makedirs("./data/" + versionname + "/" + mapname)
+                                    np.save(
+                                        "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id,
+                                        routeHeatMap)
+                                    if routeHeatMap.max() != 0:
+                                        routeHeatMap = routeHeatMap/routeHeatMap.max()
+                                    it = np.nditer(routeHeatMap, flags=['multi_index'])
+                                    while not it.finished:
+                                        if it[0] > 0:
+                                            routeData.append({ "x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": float(it[0]) })
+                                        it.iternext()
+                                    with safe_open_w("./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id + ".json") as f:
+                                        f.write(json.dumps(routeData))
+                                    layerHeatMap = layerHeatMap + routeHeatMap
+                                currentHeatMapCount += 1
+                            if routeChanged:
+                                layerChanged = True
+                                if layerHeatMap.max() != 0:
+                                    layerHeatMap = layerHeatMap / layerHeatMap.max()
+                                it = np.nditer(layerHeatMap, flags=['multi_index'])
                                 while not it.finished:
                                     if it[0] > 0:
-                                        routeData.append({ "x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": float(it[0]) })
+                                        layerData.append({"x": int(it.multi_index[0]), "y": int(it.multi_index[1]),
+                                                          "value": float(it[0])})
                                     it.iternext()
-                                with safe_open_w("./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id + ".json") as f:
-                                    f.write(json.dumps(routeData))
-                                layerHeatMap = layerHeatMap + routeHeatMap
-                                currentRouteCount += 1
-                            if layerHeatMap.max() != 0:
-                                layerHeatMap = layerHeatMap / layerHeatMap.max()
-                            it = np.nditer(layerHeatMap, flags=['multi_index'])
+                                with safe_open_w(
+                                        "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + ".json") as f:
+                                    f.write(json.dumps(layerData))
+                                gameModeHeatMap = gameModeHeatMap + layerHeatMap
+                            currentHeatMapCount += 1
+                        if layerChanged:
+                            if gameModeHeatMap.max() != 0:
+                                gameModeHeatMap = gameModeHeatMap / gameModeHeatMap.max()
+                            it = np.nditer(gameModeHeatMap, flags=['multi_index'])
                             while not it.finished:
                                 if it[0] > 0:
-                                    layerData.append({"x": int(it.multi_index[0]), "y": int(it.multi_index[1]),
+                                    gameModeData.append({"x": int(it.multi_index[0]), "y": int(it.multi_index[1]),
                                                       "value": float(it[0])})
                                 it.iternext()
                             with safe_open_w(
-                                    "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + ".json") as f:
-                                f.write(json.dumps(layerData))
-                            gameModeHeatMap = gameModeHeatMap + layerHeatMap
-                        if gameModeHeatMap.max() != 0:
-                            gameModeHeatMap = gameModeHeatMap / gameModeHeatMap.max()
-                        it = np.nditer(gameModeHeatMap, flags=['multi_index'])
+                                    "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + ".json") as f:
+                                f.write(json.dumps(gameModeData))
+                            mapHeatMap = mapHeatMap + gameModeHeatMap
+                        currentHeatMapCount += 1
+                    if gameModeChanged:
+                        if mapHeatMap.max() != 0:
+                            mapHeatMap = mapHeatMap / mapHeatMap.max()
+                        it = np.nditer(mapHeatMap, flags=['multi_index'])
                         while not it.finished:
                             if it[0] > 0:
-                                gameModeData.append({"x": int(it.multi_index[0]), "y": int(it.multi_index[1]),
-                                                  "value": float(it[0])})
+                                mapData.append({"x": int(it.multi_index[0]), "y": int(it.multi_index[1]),
+                                                     "value": float(it[0])})
                             it.iternext()
                         with safe_open_w(
-                                "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + ".json") as f:
-                            f.write(json.dumps(gameModeData))
-                        mapHeatMap = mapHeatMap + gameModeHeatMap
-                    if mapHeatMap.max() != 0:
-                        mapHeatMap = mapHeatMap / mapHeatMap.max()
-                    it = np.nditer(mapHeatMap, flags=['multi_index'])
-                    while not it.finished:
-                        if it[0] > 0:
-                            mapData.append({"x": int(it.multi_index[0]), "y": int(it.multi_index[1]),
-                                                 "value": float(it[0])})
-                        it.iternext()
-                    with safe_open_w(
-                            "./data/" + versionname + "/" + mapname + "/combinedmovement.json") as f:
-                        f.write(json.dumps(mapData))
+                                "./data/" + versionname + "/" + mapname + "/combinedmovement.json") as f:
+                            f.write(json.dumps(mapData))
+                    currentHeatMapCount += 1
             update_progress(1, "")
-            print "\nAll heatmaps(" + str(totalRouteCount) +") generated."
+            print "\nAll heatmaps(" + str(totalHeatMapCount) +") generated."
         else:
             print "There is no data to generate heatmaps from."
 
