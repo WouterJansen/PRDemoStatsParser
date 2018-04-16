@@ -57,7 +57,11 @@ def findDisplayName(name):
         for index, part in enumerate(splitLine, start=0):
             if part != "":
                 wordLine.append(part)
-        return " ".join(wordLine)
+        foundScale = findScale(name)
+        if foundScale is not -1:
+            return " ".join(wordLine) + " (" + str(foundScale) + "km)"
+        else:
+            return " ".join(wordLine) + " (?km)"
     else:
         return name
 
