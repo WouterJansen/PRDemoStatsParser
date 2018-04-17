@@ -16,6 +16,7 @@ import numpy as np
 import time
 from shutil import copyfile
 import urlparse
+from pyheatmap.heatmap import HeatMap
 ###############################
 #           HELPERS           #
 ###############################
@@ -92,9 +93,9 @@ def walkdir(folder):
             yield os.path.abspath(os.path.join(dirpath, filename))
 
 # Helper function to show progress bar
-def update_progress(progress,message):
+def update_progress(currentCount,totalCount):
     barLength = 20
-    status = message
+    progress = float(currentCount) / totalCount
     if isinstance(progress, int):
         progress = float(progress)
     if not isinstance(progress, float):
@@ -106,7 +107,7 @@ def update_progress(progress,message):
     if progress >= 1:
         progress = 1
     block = int(round(barLength*progress))
-    text = "\r[{0}] {1}% {2}".format( "#"*block + "-"*(barLength-block), round(progress*100,2), status)
+    text = "\r[{0}] {1}% {2}".format( "#"*block + "-"*(barLength-block), round(progress*100,2), " (" + str(currentCount) + "/" + str(totalCount) + ")")
     sys.stdout.write(text)
     sys.stdout.flush()
 
@@ -686,7 +687,6 @@ class StatsParser:
     # Parse all PRdemo files in the demos folder. It also removes the files after parsing to avoid duplicate entries.
     # This uses multiprocessing to devide the work among the cores.
     def dataAggragation(self):
-        global demosToParseCount
         demosToParseCount = 0
         for filepath in walkdir("./demos"):
             demosToParseCount += 1
@@ -697,16 +697,16 @@ class StatsParser:
                 if os.stat(filepath).st_size > 10000:
                     filesToParse.append(filepath)
             if len(filesToParse) != 0:
-                print "Parsing new PRDemos..."
+                print "Parsing valid new PRDemos..."
                 pool = multiprocessing.Pool(multiprocessing.cpu_count()-1)
                 resultingParsedDemos = pool.map_async(parseNewDemo, filesToParse,chunksize=1)
                 pool.close()
                 while (True):
-                    update_progress(float(len(filesToParse) - resultingParsedDemos._number_left) / len(filesToParse), "(" + str(len(filesToParse) - resultingParsedDemos._number_left) + "/" + str(len(filesToParse)) +")")
+                    update_progress(len(filesToParse) - resultingParsedDemos._number_left,len(filesToParse))
                     time.sleep(0.5)
                     if (resultingParsedDemos.ready()): break
                 resultingParsedDemos.wait()
-                update_progress(1, "")
+                update_progress(len(filesToParse), len(filesToParse))
                 resultingParsedDemos = resultingParsedDemos.get()
                 for parsedDemo in resultingParsedDemos:
                     self.demoToData(parsedDemo,True)
@@ -715,11 +715,9 @@ class StatsParser:
                     os.remove(os.path.join("./demos", f))
                 print "\nParsing of new PRDemos(" + str(demosToParseCount) + ") complete."
             else:
-                print "There are no new PRDemos to parse."
+                print "There are no valid new PRDemos to parse."
         else:
-            print "There are no new PRDemos to parse."
-
-
+            print "There are no valid new PRDemos to parse."
 
 
     # Create maplist.json with basic map statistics for map list overview
@@ -780,7 +778,7 @@ class StatsParser:
             print "Importing existing statistics..."
             for index, filepath in enumerate(walkdir("./data"), start=0):
                 if fnmatch(filepath, "*statistics.json") is True:
-                    update_progress(float(index) / totalStatisticsCount,  "(" + str(index) + "/" + str(totalStatisticsCount) + ")")
+                    update_progress(index,totalStatisticsCount)
                     with open(filepath, 'r') as f:
                         importedMapStatistics = json2obj(f.read())
                         for gamemode in importedMapStatistics.gameModes:
@@ -796,7 +794,7 @@ class StatsParser:
                                                              parsedDemo.ticketsTeam1, parsedDemo.ticketsTeam2, flags)
                                         newDemo.completed = True
                                         self.demoToData(newDemo,False)
-                    update_progress(float(index) / totalStatisticsCount,"")
+                    update_progress(totalStatisticsCount,totalStatisticsCount)
 
             print "\nImport of existing statistics(" + str(totalStatisticsCount) + ") complete."
         else:
@@ -850,17 +848,16 @@ class StatsParser:
                 if len(demosToDownload) != 0:
                     print "Downloading available PRDemos from servers(" + ','.join(serverNameList) + ")..."
                     for demoIndex, demoUrl in enumerate(demosToDownload, start=0):
-                        update_progress(float(demoIndex) / len(demosToDownload),
-                                        "(" + str(demoIndex) + "/" + str(len(demosToDownload)) + ")")
+                        update_progress(demoIndex,len(demosToDownload))
                         urllib.urlretrieve(demoUrl, "./demos/" + getDemoName(demoUrl))
-                        update_progress(float(demoIndex) / len(demosToDownload),"")
-                    update_progress(1, "")
+                        # update_progress(demoIndex,len(demosToDownload))
+                    update_progress(len(demosToDownload), len(demosToDownload))
                     print "\nAll available PRDemos from servers("+ str(len(demosToDownload)) + ") downloaded."
                 else:
                     print "There are no new PRDemos to download."
                 with safe_open_w("./input/config.json") as f:
                     f.write(newServerConfig.toJSON())
-        except:
+        except :
             print "/input/config.json file not found. Can't download demos automatically."
 
     #Generate heatmap data based on player locations. Includes importing of existing data through loading in
@@ -881,101 +878,71 @@ class StatsParser:
             print "Generating heatmaps..."
             for versionname,version in self.versions.iteritems():
                 for mapname, map in version.iteritems():
-                    update_progress(float(currentHeatMapCount) / totalHeatMapCount,
-                                    "(" + str(currentHeatMapCount) + "/" + str(
-                                        totalHeatMapCount) + ")")
-                    mapHeatMap = np.zeros(shape=(512, 512))
-                    mapData = []
+                    update_progress(currentHeatMapCount,totalHeatMapCount)
+                    mapHeatMapMatrix = np.zeros(shape=(512, 512))
                     gameModeChanged = False
                     for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
-                        update_progress(float(currentHeatMapCount) / totalHeatMapCount,
-                                        "(" + str(currentHeatMapCount) + "/" + str(
-                                            totalHeatMapCount) + ")")
-                        gameModeHeatMap = np.zeros(shape=(512, 512))
-                        gameModeData = []
+                        update_progress(currentHeatMapCount, totalHeatMapCount)
+                        gameModeHeatMapMatrix = np.zeros(shape=(512, 512))
                         layerChanged = False
                         for layerIndex, layer in enumerate(gameMode.layers, start=0):
-                            update_progress(float(currentHeatMapCount) / totalHeatMapCount,
-                                            "(" + str(currentHeatMapCount) + "/" + str(
-                                                totalHeatMapCount) + ")")
-                            layerHeatMap = np.zeros(shape=(512, 512))
-                            layerData = []
+                            update_progress(currentHeatMapCount, totalHeatMapCount)
+                            layerHeatMapMatrix = np.zeros(shape=(512, 512))
                             routeChanged = False
                             for routeIndex, route in enumerate(layer.routes, start=0):
-                                update_progress(float(currentHeatMapCount) / totalHeatMapCount,
-                                                "(" + str(currentHeatMapCount) + "/" + str(
-                                                    totalHeatMapCount) + ")")
+                                update_progress(currentHeatMapCount, totalHeatMapCount)
                                 if route.updated:
                                     routeChanged = True
-                                    routeHeatMap = np.zeros(shape=(512,512))
-                                    routeData = []
+                                    routeHeatMapMatrix = np.zeros(shape=(512,512))
                                     try:
                                         importedRouteHeatMap = np.load(str("./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id + ".npy"))
-                                        routeHeatMap = routeHeatMap + importedRouteHeatMap
+                                        routeHeatMapMatrix = routeHeatMapMatrix + importedRouteHeatMap
                                     except Exception, e:
                                         pass
                                     for parsedDemo in route.roundsPlayed:
                                         if type(parsedDemo.heatMap) is not type(None):
-                                            routeHeatMap = routeHeatMap + parsedDemo.heatMap
+                                            routeHeatMapMatrix = routeHeatMapMatrix + parsedDemo.heatMap
                                     if not os.path.exists("./data/" + versionname + "/" + mapname):
                                         os.makedirs("./data/" + versionname + "/" + mapname)
                                     np.save(
                                         "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id,
-                                        routeHeatMap)
-                                    if routeHeatMap.max() != 0:
-                                        routeHeatMap = routeHeatMap/routeHeatMap.max()
-                                    it = np.nditer(routeHeatMap, flags=['multi_index'])
-                                    while not it.finished:
-                                        if it[0] > 0:
-                                            routeData.append({ "x": int(it.multi_index[0]), "y": int(it.multi_index[1]), "value": float(it[0]) })
-                                        it.iternext()
-                                    with safe_open_w("./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id + ".json") as f:
-                                        f.write(json.dumps(routeData))
-                                    layerHeatMap = layerHeatMap + routeHeatMap
+                                        routeHeatMapMatrix)
+                                    routeHeatMapData = []
+                                    for ix, iy in np.ndindex(routeHeatMapMatrix.shape):
+                                        for count in range(0,int(routeHeatMapMatrix[ix,iy])):
+                                            routeHeatMapData.append([ix, iy])
+                                    HeatMap(routeHeatMapData).heatmap(save_as="./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id + ".png")
+                                    layerHeatMapMatrix = layerHeatMapMatrix + routeHeatMapMatrix
                                 currentHeatMapCount += 1
                             if routeChanged:
                                 layerChanged = True
-                                if layerHeatMap.max() != 0:
-                                    layerHeatMap = layerHeatMap / layerHeatMap.max()
-                                it = np.nditer(layerHeatMap, flags=['multi_index'])
-                                while not it.finished:
-                                    if it[0] > 0:
-                                        layerData.append({"x": int(it.multi_index[0]), "y": int(it.multi_index[1]),
-                                                          "value": float(it[0])})
-                                    it.iternext()
-                                with safe_open_w(
-                                        "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + ".json") as f:
-                                    f.write(json.dumps(layerData))
-                                gameModeHeatMap = gameModeHeatMap + layerHeatMap
+                                layerHeatMapData = []
+                                for ix, iy in np.ndindex(layerHeatMapMatrix.shape):
+                                    for count in range(0, int(layerHeatMapMatrix[ix, iy])):
+                                        layerHeatMapData.append([ix, iy])
+                                HeatMap(layerHeatMapData).heatmap(
+                                    save_as="./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + ".png")
+                                gameModeHeatMapMatrix = gameModeHeatMapMatrix + layerHeatMapMatrix
                             currentHeatMapCount += 1
                         if layerChanged:
-                            if gameModeHeatMap.max() != 0:
-                                gameModeHeatMap = gameModeHeatMap / gameModeHeatMap.max()
-                            it = np.nditer(gameModeHeatMap, flags=['multi_index'])
-                            while not it.finished:
-                                if it[0] > 0:
-                                    gameModeData.append({"x": int(it.multi_index[0]), "y": int(it.multi_index[1]),
-                                                      "value": float(it[0])})
-                                it.iternext()
-                            with safe_open_w(
-                                    "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + ".json") as f:
-                                f.write(json.dumps(gameModeData))
-                            mapHeatMap = mapHeatMap + gameModeHeatMap
+                            gameModeChanged = True
+                            gameModeHeatMapData = []
+                            for ix, iy in np.ndindex(gameModeHeatMapMatrix.shape):
+                                for count in range(0, int(gameModeHeatMapMatrix[ix, iy])):
+                                    gameModeHeatMapData.append([ix, iy])
+                            HeatMap(gameModeHeatMapData).heatmap(
+                                save_as="./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + ".png")
+                            mapHeatMapMatrix = mapHeatMapMatrix + gameModeHeatMapMatrix
                         currentHeatMapCount += 1
                     if gameModeChanged:
-                        if mapHeatMap.max() != 0:
-                            mapHeatMap = mapHeatMap / mapHeatMap.max()
-                        it = np.nditer(mapHeatMap, flags=['multi_index'])
-                        while not it.finished:
-                            if it[0] > 0:
-                                mapData.append({"x": int(it.multi_index[0]), "y": int(it.multi_index[1]),
-                                                     "value": float(it[0])})
-                            it.iternext()
-                        with safe_open_w(
-                                "./data/" + versionname + "/" + mapname + "/combinedmovement.json") as f:
-                            f.write(json.dumps(mapData))
+                        mapHeatMapData = []
+                        for ix, iy in np.ndindex(mapHeatMapMatrix.shape):
+                            for count in range(0, int(mapHeatMapMatrix[ix, iy])):
+                                mapHeatMapData.append([ix, iy])
+                        HeatMap(mapHeatMapData).heatmap(
+                            save_as="./data/" + versionname + "/" + mapname + "/" + "combinedmovement" + ".png")
                     currentHeatMapCount += 1
-            update_progress(1, "")
+            update_progress(totalHeatMapCount, totalHeatMapCount)
             print "\nAll heatmaps(" + str(totalHeatMapCount) +") generated."
         else:
             print "There is no data to generate heatmaps from."
