@@ -910,14 +910,15 @@ class StatsParser:
                                     for ix, iy in np.ndindex(routeHeatMapMatrix.shape):
                                         for count in range(0,int(routeHeatMapMatrix[ix,iy])):
                                             routeHeatMapData.append([ix, iy])
-                                    HeatMap(routeHeatMapData).heatmap(save_as=routeHeatMapName + ".png")
+                                    HeatMap(data=routeHeatMapData,width=512,height=512).heatmap(save_as=routeHeatMapName + ".png")
+                                    HeatMap()
                                     layerHeatMapData.extend(routeHeatMapData)
                                 currentHeatMapCount += 1
                             if routeChanged:
                                 layerChanged = True
                                 layerHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + ".png"
                                 if len(layer.routes) > 1:
-                                    HeatMap(layerHeatMapData).heatmap(save_as=layerHeatMapFileName)
+                                    HeatMap(data=layerHeatMapData,width=512,height=512).heatmap(save_as=layerHeatMapFileName)
                                 else:
                                     routeHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + layer.routes[0].id + ".png"
                                     copyfile(routeHeatMapFileName,layerHeatMapFileName)
@@ -927,7 +928,7 @@ class StatsParser:
                             gameModeChanged = True
                             gameModeHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + ".png"
                             if len(gameMode.layers) > 1:
-                                HeatMap(gameModeHeatMapData).heatmap(save_as=gameModeHeatMapFileName)
+                                HeatMap(data=gameModeHeatMapData,width=512,height=512).heatmap(save_as=gameModeHeatMapFileName)
                             else:
                                 layerHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + gameMode.layers[0].name + ".png"
                                 copyfile(layerHeatMapFileName, gameModeHeatMapFileName)
@@ -936,7 +937,7 @@ class StatsParser:
                     if gameModeChanged:
                         mapHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement" + ".png"
                         if len(map.gameModes) > 1:
-                            HeatMap(mapHeatMapData).heatmap(save_as=mapHeatMapFileName)
+                            HeatMap(data=mapHeatMapData,width=512,height=512).heatmap(save_as=mapHeatMapFileName)
                         else:
                             gameModeHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + map.gameModes[0].name + ".png"
                             copyfile(gameModeHeatMapFileName, mapHeatMapFileName)
