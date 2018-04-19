@@ -879,23 +879,24 @@ class StatsParser:
             for versionname,version in self.versions.iteritems():
                 for mapname, map in version.iteritems():
                     update_progress(currentHeatMapCount,totalHeatMapCount)
-                    mapHeatMapMatrix = np.zeros(shape=(512, 512))
+                    mapHeatMapData = []
                     gameModeChanged = False
                     for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
                         update_progress(currentHeatMapCount, totalHeatMapCount)
-                        gameModeHeatMapMatrix = np.zeros(shape=(512, 512))
+                        gameModeHeatMapData = []
                         layerChanged = False
                         for layerIndex, layer in enumerate(gameMode.layers, start=0):
                             update_progress(currentHeatMapCount, totalHeatMapCount)
-                            layerHeatMapMatrix = np.zeros(shape=(512, 512))
+                            layerHeatMapData = []
                             routeChanged = False
                             for routeIndex, route in enumerate(layer.routes, start=0):
                                 update_progress(currentHeatMapCount, totalHeatMapCount)
                                 if route.updated:
                                     routeChanged = True
                                     routeHeatMapMatrix = np.zeros(shape=(512,512))
+                                    routeHeatMapName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id
                                     try:
-                                        importedRouteHeatMap = np.load(str("./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id + ".npy"))
+                                        importedRouteHeatMap = np.load(str(routeHeatMapName + ".npy"))
                                         routeHeatMapMatrix = routeHeatMapMatrix + importedRouteHeatMap
                                     except Exception, e:
                                         pass
@@ -904,43 +905,41 @@ class StatsParser:
                                             routeHeatMapMatrix = routeHeatMapMatrix + parsedDemo.heatMap
                                     if not os.path.exists("./data/" + versionname + "/" + mapname):
                                         os.makedirs("./data/" + versionname + "/" + mapname)
-                                    np.save(
-                                        "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id,
-                                        routeHeatMapMatrix)
+                                    np.save(routeHeatMapName,routeHeatMapMatrix)
                                     routeHeatMapData = []
                                     for ix, iy in np.ndindex(routeHeatMapMatrix.shape):
                                         for count in range(0,int(routeHeatMapMatrix[ix,iy])):
                                             routeHeatMapData.append([ix, iy])
-                                    HeatMap(routeHeatMapData).heatmap(save_as="./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id + ".png")
-                                    layerHeatMapMatrix = layerHeatMapMatrix + routeHeatMapMatrix
+                                    HeatMap(routeHeatMapData).heatmap(save_as=routeHeatMapName + ".png")
+                                    layerHeatMapData.extend(routeHeatMapData)
                                 currentHeatMapCount += 1
                             if routeChanged:
                                 layerChanged = True
-                                layerHeatMapData = []
-                                for ix, iy in np.ndindex(layerHeatMapMatrix.shape):
-                                    for count in range(0, int(layerHeatMapMatrix[ix, iy])):
-                                        layerHeatMapData.append([ix, iy])
-                                HeatMap(layerHeatMapData).heatmap(
-                                    save_as="./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + ".png")
-                                gameModeHeatMapMatrix = gameModeHeatMapMatrix + layerHeatMapMatrix
+                                layerHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + ".png"
+                                if len(layer.routes) > 1:
+                                    HeatMap(layerHeatMapData).heatmap(save_as=layerHeatMapFileName)
+                                else:
+                                    routeHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + layer.routes[0].id + ".png"
+                                    copyfile(routeHeatMapFileName,layerHeatMapFileName)
+                                gameModeHeatMapData.extend(layerHeatMapData)
                             currentHeatMapCount += 1
                         if layerChanged:
                             gameModeChanged = True
-                            gameModeHeatMapData = []
-                            for ix, iy in np.ndindex(gameModeHeatMapMatrix.shape):
-                                for count in range(0, int(gameModeHeatMapMatrix[ix, iy])):
-                                    gameModeHeatMapData.append([ix, iy])
-                            HeatMap(gameModeHeatMapData).heatmap(
-                                save_as="./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + ".png")
-                            mapHeatMapMatrix = mapHeatMapMatrix + gameModeHeatMapMatrix
+                            gameModeHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + ".png"
+                            if len(gameMode.layers) > 1:
+                                HeatMap(gameModeHeatMapData).heatmap(save_as=gameModeHeatMapFileName)
+                            else:
+                                layerHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + gameMode.layers[0].name + ".png"
+                                copyfile(layerHeatMapFileName, gameModeHeatMapFileName)
+                            mapHeatMapData.extend(gameModeHeatMapData)
                         currentHeatMapCount += 1
                     if gameModeChanged:
-                        mapHeatMapData = []
-                        for ix, iy in np.ndindex(mapHeatMapMatrix.shape):
-                            for count in range(0, int(mapHeatMapMatrix[ix, iy])):
-                                mapHeatMapData.append([ix, iy])
-                        HeatMap(mapHeatMapData).heatmap(
-                            save_as="./data/" + versionname + "/" + mapname + "/" + "combinedmovement" + ".png")
+                        mapHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement" + ".png"
+                        if len(map.gameModes) > 1:
+                            HeatMap(mapHeatMapData).heatmap(save_as=mapHeatMapFileName)
+                        else:
+                            gameModeHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + map.gameModes[0].name + ".png"
+                            copyfile(gameModeHeatMapFileName, mapHeatMapFileName)
                     currentHeatMapCount += 1
             update_progress(totalHeatMapCount, totalHeatMapCount)
             print "\nAll heatmaps(" + str(totalHeatMapCount) +") generated."
