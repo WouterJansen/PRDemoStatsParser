@@ -25,6 +25,71 @@ from pyheatmap.heatmap import HeatMap
 def _json_object_hook(d): return namedtuple('X', d.keys())(*d.values())
 def json2obj(data): return json.loads(data, object_hook=_json_object_hook)
 
+def generateHeatMap(map):
+    mapHeatMapData = []
+    gameModeChanged = False
+    for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
+        gameModeHeatMapData = []
+        layerChanged = False
+        for layerIndex, layer in enumerate(gameMode.layers, start=0):
+            layerHeatMapData = []
+            routeChanged = False
+            for routeIndex, route in enumerate(layer.routes, start=0):
+                if route.updated:
+                    routeChanged = True
+                    routeHeatMapMatrix = np.zeros(shape=(512, 512))
+                    print map.name + " " + gameMode.name + " " + layer.name + " " + route.id
+                    routeHeatMapName = "./data/" + map.versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id
+                    try:
+                        importedRouteHeatMap = np.load(str(routeHeatMapName + ".npy"))
+                        routeHeatMapMatrix = routeHeatMapMatrix + importedRouteHeatMap
+                    except Exception, e:
+                        pass
+                    print "demos:" + len(route.roundsPlayed)
+                    for parsedDemo in route.roundsPlayed:
+
+                        if type(parsedDemo.heatMap) is not type(None):
+                            routeHeatMapMatrix = routeHeatMapMatrix + parsedDemo.heatMap
+                    if not os.path.exists("./data/" + map.versionname + "/" + mapname):
+                        os.makedirs("./data/" + map.versionname + "/" + mapname)
+                    np.save(routeHeatMapName, routeHeatMapMatrix)
+                    routeHeatMapData = []
+                    for ix, iy in np.ndindex(routeHeatMapMatrix.shape):
+                        for count in range(0, int(routeHeatMapMatrix[ix, iy])):
+                            routeHeatMapData.append([ix, iy])
+                    HeatMap(data=routeHeatMapData, width=512, height=512).heatmap(save_as=routeHeatMapName + ".png")
+                    HeatMap()
+                    layerHeatMapData.extend(routeHeatMapData)
+            if routeChanged:
+                layerChanged = True
+                layerHeatMapFileName = "./data/" + map.versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + ".png"
+                if len(layer.routes) > 1:
+                    HeatMap(data=layerHeatMapData, width=512, height=512).heatmap(save_as=layerHeatMapFileName)
+                else:
+                    routeHeatMapFileName = "./data/" + map.versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + \
+                                           layer.routes[0].id + ".png"
+                    copyfile(routeHeatMapFileName, layerHeatMapFileName)
+                gameModeHeatMapData.extend(layerHeatMapData)
+        if layerChanged:
+            gameModeChanged = True
+            gameModeHeatMapFileName = "./data/" + map.versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + ".png"
+            if len(gameMode.layers) > 1:
+                HeatMap(data=gameModeHeatMapData, width=512, height=512).heatmap(save_as=gameModeHeatMapFileName)
+            else:
+                layerHeatMapFileName = "./data/" + map.versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + \
+                                       gameMode.layers[0].name + ".png"
+                copyfile(layerHeatMapFileName, gameModeHeatMapFileName)
+            mapHeatMapData.extend(gameModeHeatMapData)
+    if gameModeChanged:
+        mapHeatMapFileName = "./data/" + map.versionname + "/" + mapname + "/" + "combinedmovement" + ".png"
+        if len(map.gameModes) > 1:
+            HeatMap(data=mapHeatMapData, width=512, height=512).heatmap(save_as=mapHeatMapFileName)
+        else:
+            gameModeHeatMapFileName = "./data/" + map.versionname + "/" + mapname + "/" + "combinedmovement_" + \
+                                      map.gameModes[0].name + ".png"
+            copyfile(gameModeHeatMapFileName, mapHeatMapFileName)
+    return map.name
+
 
 def getDemoName(demoUrl):
     if "file=" in demoUrl:
@@ -688,36 +753,34 @@ class StatsParser:
     # This uses multiprocessing to devide the work among the cores.
     def dataAggragation(self):
         demosToParseCount = 0
-        for filepath in walkdir("./demos"):
+        for demoFilePath in walkdir("./demos"):
             demosToParseCount += 1
-        filesToParse = []
+        demosToParse = []
         if demosToParseCount != 0:
-            for index, filepath in enumerate(walkdir("./demos"), start=0):
-                head, tail = os.path.split(filepath)
-                if os.stat(filepath).st_size > 10000:
-                    filesToParse.append(filepath)
-            if len(filesToParse) != 0:
+            for index, demoFilePath in enumerate(walkdir("./demos"), start=0):
+                if os.stat(demoFilePath).st_size > 10000:
+                    demosToParse.append(demoFilePath)
+            if len(demosToParse) != 0:
                 print "Parsing valid new PRDemos..."
-                pool = multiprocessing.Pool(multiprocessing.cpu_count()-1)
-                resultingParsedDemos = pool.map_async(parseNewDemo, filesToParse,chunksize=1)
+                pool = multiprocessing.Pool(multiprocessing.cpu_count())
+                parsedDemos = pool.map_async(parseNewDemo, demosToParse,chunksize=1)
                 pool.close()
                 while (True):
-                    update_progress(len(filesToParse) - resultingParsedDemos._number_left,len(filesToParse))
+                    update_progress(len(demosToParse) - parsedDemos._number_left,len(demosToParse))
                     time.sleep(0.5)
-                    if (resultingParsedDemos.ready()): break
-                resultingParsedDemos.wait()
-                update_progress(len(filesToParse), len(filesToParse))
-                resultingParsedDemos = resultingParsedDemos.get()
-                for parsedDemo in resultingParsedDemos:
+                    if (parsedDemos.ready()): break
+                parsedDemos.wait()
+                update_progress(len(demosToParse), len(demosToParse))
+                parsedDemos = parsedDemos.get()
+                for parsedDemo in parsedDemos:
                     self.demoToData(parsedDemo,True)
-                filelist = [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]
-                for f in filelist:
-                    os.remove(os.path.join("./demos", f))
+                # for f in [f for f in os.listdir("./demos") if f.endswith(".PRdemo")]:
+                #     os.remove(os.path.join("./demos", f))
                 print "\nParsing of new PRDemos(" + str(demosToParseCount) + ") complete."
             else:
                 print "There are no valid new PRDemos to parse."
         else:
-            print "There are no valid new PRDemos to parse."
+            print "There are no new PRDemos found."
 
 
     # Create maplist.json with basic map statistics for map list overview
@@ -863,87 +926,27 @@ class StatsParser:
     #Generate heatmap data based on player locations. Includes importing of existing data through loading in
     #existing numpy matrixes (.npy) files found in the data folder for each route.
     def generateHeatMaps(self):
-        totalHeatMapCount = 0
+        mapsToGenerate = []
         for versionname,version in self.versions.iteritems():
             for mapname, map in version.iteritems():
-                totalHeatMapCount += 1
-                for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
-                    totalHeatMapCount += 1
-                    for layerIndex, layer in enumerate(gameMode.layers, start=0):
-                        totalHeatMapCount += 1
-                        for routeIndex, route in enumerate(layer.routes, start=0):
-                            totalHeatMapCount += 1
+                setattr(map, 'somefield', 'somevalue')
+                map.currentVersion = versionname
+                mapsToGenerate.append(map)
         currentHeatMapCount = 1
-        if totalHeatMapCount != 0:
+        if len(mapsToGenerate) != 0:
             print "Generating heatmaps..."
-            for versionname,version in self.versions.iteritems():
-                for mapname, map in version.iteritems():
-                    update_progress(currentHeatMapCount,totalHeatMapCount)
-                    mapHeatMapData = []
-                    gameModeChanged = False
-                    for gameModeIndex, gameMode in enumerate(map.gameModes, start=0):
-                        update_progress(currentHeatMapCount, totalHeatMapCount)
-                        gameModeHeatMapData = []
-                        layerChanged = False
-                        for layerIndex, layer in enumerate(gameMode.layers, start=0):
-                            update_progress(currentHeatMapCount, totalHeatMapCount)
-                            layerHeatMapData = []
-                            routeChanged = False
-                            for routeIndex, route in enumerate(layer.routes, start=0):
-                                update_progress(currentHeatMapCount, totalHeatMapCount)
-                                if route.updated:
-                                    routeChanged = True
-                                    routeHeatMapMatrix = np.zeros(shape=(512,512))
-                                    routeHeatMapName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + route.id
-                                    try:
-                                        importedRouteHeatMap = np.load(str(routeHeatMapName + ".npy"))
-                                        routeHeatMapMatrix = routeHeatMapMatrix + importedRouteHeatMap
-                                    except Exception, e:
-                                        pass
-                                    for parsedDemo in route.roundsPlayed:
-                                        if type(parsedDemo.heatMap) is not type(None):
-                                            routeHeatMapMatrix = routeHeatMapMatrix + parsedDemo.heatMap
-                                    if not os.path.exists("./data/" + versionname + "/" + mapname):
-                                        os.makedirs("./data/" + versionname + "/" + mapname)
-                                    np.save(routeHeatMapName,routeHeatMapMatrix)
-                                    routeHeatMapData = []
-                                    for ix, iy in np.ndindex(routeHeatMapMatrix.shape):
-                                        for count in range(0,int(routeHeatMapMatrix[ix,iy])):
-                                            routeHeatMapData.append([ix, iy])
-                                    HeatMap(data=routeHeatMapData,width=512,height=512).heatmap(save_as=routeHeatMapName + ".png")
-                                    HeatMap()
-                                    layerHeatMapData.extend(routeHeatMapData)
-                                currentHeatMapCount += 1
-                            if routeChanged:
-                                layerChanged = True
-                                layerHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + ".png"
-                                if len(layer.routes) > 1:
-                                    HeatMap(data=layerHeatMapData,width=512,height=512).heatmap(save_as=layerHeatMapFileName)
-                                else:
-                                    routeHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + layer.name + "_" + layer.routes[0].id + ".png"
-                                    copyfile(routeHeatMapFileName,layerHeatMapFileName)
-                                gameModeHeatMapData.extend(layerHeatMapData)
-                            currentHeatMapCount += 1
-                        if layerChanged:
-                            gameModeChanged = True
-                            gameModeHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + ".png"
-                            if len(gameMode.layers) > 1:
-                                HeatMap(data=gameModeHeatMapData,width=512,height=512).heatmap(save_as=gameModeHeatMapFileName)
-                            else:
-                                layerHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + gameMode.name + "_" + gameMode.layers[0].name + ".png"
-                                copyfile(layerHeatMapFileName, gameModeHeatMapFileName)
-                            mapHeatMapData.extend(gameModeHeatMapData)
-                        currentHeatMapCount += 1
-                    if gameModeChanged:
-                        mapHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement" + ".png"
-                        if len(map.gameModes) > 1:
-                            HeatMap(data=mapHeatMapData,width=512,height=512).heatmap(save_as=mapHeatMapFileName)
-                        else:
-                            gameModeHeatMapFileName = "./data/" + versionname + "/" + mapname + "/" + "combinedmovement_" + map.gameModes[0].name + ".png"
-                            copyfile(gameModeHeatMapFileName, mapHeatMapFileName)
-                    currentHeatMapCount += 1
-            update_progress(totalHeatMapCount, totalHeatMapCount)
-            print "\nAll heatmaps(" + str(totalHeatMapCount) +") generated."
+            for map in mapsToGenerate:
+                generateHeatMap(map)
+            # pool = multiprocessing.Pool(multiprocessing.cpu_count())
+            # generatedMaps = pool.map_async(generateHeatMap, mapsToGenerate, chunksize=1)
+            # pool.close()
+            # while (True):
+            #     update_progress(len(mapsToGenerate) - generatedMaps._number_left, len(mapsToGenerate))
+            #     time.sleep(0.5)
+            #     if (generatedMaps.ready()): break
+            # generatedMaps.wait()
+            # update_progress(len(mapsToGenerate), len(mapsToGenerate))
+            print "\nAll heatmaps(" + str(len(mapsToGenerate)) +") generated."
         else:
             print "There is no data to generate heatmaps from."
 
