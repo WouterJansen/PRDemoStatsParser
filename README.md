@@ -11,11 +11,11 @@ Script for generating statistical data from PRDemo(PR Tracker) files from The Ba
 ```javascript
 {
   "albasrah_2": {
-    "displayName": "Al Basrah",
+    "displayName": "Al Basrah (2km)",
     "scale": 2
   },
   "iron_thunder": {
-    "displayName": "Operation Thunder - BETA",
+    "displayName": "Operation Thunder - BETA (4km)",
     "scale": 4
   }
 }
