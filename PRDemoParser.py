@@ -909,7 +909,6 @@ class StatsParser:
                     for demoIndex, demoUrl in enumerate(demosToDownload, start=0):
                         update_progress(demoIndex,len(demosToDownload))
                         urllib.urlretrieve(demoUrl, "./demos/" + getDemoName(demoUrl))
-                        # update_progress(demoIndex,len(demosToDownload))
                     update_progress(len(demosToDownload), len(demosToDownload))
                     print "\nAll available PRDemos from servers("+ str(len(demosToDownload)) + ") downloaded."
                 else:
