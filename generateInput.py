@@ -63,7 +63,11 @@ def findDisplayName(name):
         else:
             return " ".join(wordLine) + " (?km)"
     else:
-        return name
+        foundScale = findScale(name)
+        if foundScale is not -1:
+            return name + " (" + str(foundScale) + "km)"
+        else:
+            return name + " (?km)"
 
 def findScale(name):
     try:
