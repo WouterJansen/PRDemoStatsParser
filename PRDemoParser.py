@@ -428,7 +428,7 @@ class demoParser:
             if values == -1:
                 return 0x99
             version = values[3].split(']')[0].split(' ')
-            self.version = version[1]
+            self.version = version[1][:-2]
             self.mapName = values[7]
             self.scale = findScale(self.mapName)
             gamemode = values[8]
