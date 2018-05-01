@@ -3,7 +3,7 @@ Script for generating statistical data from PRDemo(PR Tracker) files from The Ba
 
 ## Requirements
 * Python 2.7.
-* Needs python packages **pyheatmap**, **numpy**, **requests** and **beautifulsoup4**.
+* Needs python packages **pyheatmap**,**PIL**, **numpy**, **requests** and **beautifulsoup4**.
 
 ## Configuration (optional)
 * Supports a folder _input_ with all minimaps as jpg's of size 512x512 with their name as the mapname (to display heatmaps on). (These can be generated automatically by ```generateInput.py```, see below)
